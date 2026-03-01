@@ -13,6 +13,7 @@ from shared.config import get_settings
 from shared.logging_config import setup_logging
 
 from .dependencies import get_cache, get_firestore
+from .jobs.alert_delivery import run_alert_delivery
 from .routers import alerts, contractors, dashboard, leads, markets, pipeline, search
 from .websocket_manager import manager as ws_manager
 
@@ -71,6 +72,30 @@ async def notify_lead(body: NotifyLeadRequest) -> dict:
     db = get_firestore()
     await ws_manager.broadcast_new_lead(body.lead, db)
     return {"notified": True}
+
+
+@app.post("/api/internal/run-alert-delivery")
+async def run_alerts() -> dict:
+    """Trigger email alert delivery job (call from Cloud Scheduler or cron)."""
+    db = get_firestore()
+    return await run_alert_delivery(db)
+
+
+@app.get("/api/config")
+def get_app_config() -> dict:
+    """Frontend app configuration — exposes public keys and feature flags."""
+    s = get_settings()
+    return {
+        "firebase_project_id": s.firebase_project_id,
+        "firebase_web_api_key": s.firebase_web_api_key,
+        "google_maps_api_key": s.google_maps_api_key,
+        "features": {
+            "ai_enrichment": s.has_ai_enrichment,
+            "email_alerts": s.has_email,
+            "auth": bool(s.firebase_project_id and s.firebase_web_api_key),
+            "maps": bool(s.google_maps_api_key),
+        },
+    }
 
 
 # ─── WebSocket ─────────────────────────────────────────────────────────────────

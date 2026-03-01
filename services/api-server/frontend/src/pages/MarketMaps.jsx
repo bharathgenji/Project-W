@@ -1,277 +1,339 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { getMarket, getLeads } from '../api/client';
-import { US_STATES } from '../components/FilterPanel';
-import MapView from '../components/MapView';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { getLeads, getMarket } from '../api/client';
 import ChartWidget from '../components/ChartWidget';
 import StatsCard from '../components/StatsCard';
 
-function formatCurrency(value) {
-  if (!value && value !== 0) return '--';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+// ── Google Maps API loader ────────────────────────────────────────────────────
+
+let mapsApiPromise = null;
+function loadGoogleMaps(apiKey) {
+  if (!mapsApiPromise) {
+    mapsApiPromise = new Promise((resolve) => {
+      if (window.google?.maps) { resolve(window.google.maps); return; }
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve(window.google.maps);
+      document.head.appendChild(script);
+    });
+  }
+  return mapsApiPromise;
 }
 
-// Approximate state center coordinates for map centering
-const STATE_CENTERS = {
-  AL: [32.806671, -86.791130],
-  AK: [61.370716, -152.404419],
-  AZ: [33.729759, -111.431221],
-  AR: [34.969704, -92.373123],
-  CA: [36.116203, -119.681564],
-  CO: [39.059811, -105.311104],
-  CT: [41.597782, -72.755371],
-  DE: [39.318523, -75.507141],
-  FL: [27.766279, -81.686783],
-  GA: [33.040619, -83.643074],
-  HI: [21.094318, -157.498337],
-  ID: [44.240459, -114.478828],
-  IL: [40.349457, -88.986137],
-  IN: [39.849426, -86.258278],
-  IA: [42.011539, -93.210526],
-  KS: [38.526600, -96.726486],
-  KY: [37.668140, -84.670067],
-  LA: [31.169546, -91.867805],
-  ME: [44.693947, -69.381927],
-  MD: [39.063946, -76.802101],
-  MA: [42.230171, -71.530106],
-  MI: [43.326618, -84.536095],
-  MN: [45.694454, -93.900192],
-  MS: [32.741646, -89.678696],
-  MO: [38.456085, -92.288368],
-  MT: [46.921925, -110.454353],
-  NE: [41.125370, -98.268082],
-  NV: [38.313515, -117.055374],
-  NH: [43.452492, -71.563896],
-  NJ: [40.298904, -74.521011],
-  NM: [34.840515, -106.248482],
-  NY: [42.165726, -74.948051],
-  NC: [35.630066, -79.806419],
-  ND: [47.528912, -99.784012],
-  OH: [40.388783, -82.764915],
-  OK: [35.565342, -96.928917],
-  OR: [44.572021, -122.070938],
-  PA: [40.590752, -77.209755],
-  RI: [41.680893, -71.511780],
-  SC: [33.856892, -80.945007],
-  SD: [44.299782, -99.438828],
-  TN: [35.747845, -86.692345],
-  TX: [31.054487, -97.563461],
-  UT: [40.150032, -111.862434],
-  VT: [44.045876, -72.710686],
-  VA: [37.769337, -78.169968],
-  WA: [47.400902, -121.490494],
-  WV: [38.491226, -80.954456],
-  WI: [44.268543, -89.616508],
-  WY: [42.755966, -107.302490],
+// ── Trade colours ─────────────────────────────────────────────────────────────
+const TRADE_COLORS = {
+  ELECTRICAL: '#f59e0b', PLUMBING: '#3b82f6', HVAC: '#06b6d4',
+  ROOFING: '#f97316', CONCRETE: '#6b7280', GENERAL: '#8b5cf6',
+  FRAMING: '#84cc16', DEFAULT: '#1d4ed8',
+};
+const TRADE_EMOJI = { ELECTRICAL:'⚡', PLUMBING:'🔧', HVAC:'❄️', ROOFING:'🏠', CONCRETE:'🏗️', GENERAL:'🔨', DEFAULT:'📋' };
+
+function formatVal(v) {
+  if (!v) return '--';
+  if (v >= 1e6) return `$${(v/1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `$${Math.round(v/1e3)}K`;
+  return `$${v}`;
+}
+
+// ── City coordinates for leads without lat/lng ────────────────────────────────
+const CITY_COORDS = {
+  'Chicago': [41.8781, -87.6298], 'Houston': [29.7604, -95.3698], 'Austin': [30.2672, -97.7431],
+  'Dallas': [32.7767, -96.7970], 'Nashville': [36.1627, -86.7816], 'Miami': [25.7617, -80.1918],
+  'Los Angeles': [34.0522, -118.2437], 'Seattle': [47.6062, -122.3321], 'Phoenix': [33.4484, -112.0740],
+  'Denver': [39.7392, -104.9903], 'Atlanta': [33.7490, -84.3880], 'Washington': [38.9072, -77.0369],
+  'New York': [40.7128, -74.0060], 'Boston': [42.3601, -71.0589], 'San Francisco': [37.7749, -122.4194],
+  'Portland': [45.5231, -122.6765], 'Charlotte': [35.2271, -80.8431], 'Indianapolis': [39.7684, -86.1581],
+  'Louisville': [38.2527, -85.7585], 'Pittsburgh': [40.4406, -79.9959], 'St. Louis': [38.6270, -90.1994],
+  'Orlando': [28.5383, -81.3792], 'Tampa': [27.9506, -82.4572], 'Minneapolis': [44.9778, -93.2650],
 };
 
-export default function MarketMaps() {
-  const [selectedState, setSelectedState] = useState('CA');
-  const [marketData, setMarketData] = useState(null);
-  const [mapLeads, setMapLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+function getLeadCoords(lead) {
+  if (lead.geo_lat && lead.geo_lng) return [lead.geo_lat, lead.geo_lng];
+  const addr = lead.addr || '';
+  for (const [city, coords] of Object.entries(CITY_COORDS)) {
+    if (addr.includes(city)) return [coords[0] + (Math.random()-0.5)*0.08, coords[1] + (Math.random()-0.5)*0.08];
+  }
+  return null;
+}
 
-  const fetchMarketData = useCallback(async (state) => {
+// ── Google Map component ──────────────────────────────────────────────────────
+function GoogleMapView({ leads, apiKey, selectedLead, onSelect }) {
+  const mapRef = React.useRef(null);
+  const mapInstance = React.useRef(null);
+  const markersRef = React.useRef([]);
+
+  useEffect(() => {
+    if (!mapRef.current || !apiKey) return;
+
+    loadGoogleMaps(apiKey).then((maps) => {
+      if (!mapInstance.current) {
+        mapInstance.current = new maps.Map(mapRef.current, {
+          center: { lat: 37.8, lng: -96 },
+          zoom: 4,
+          mapTypeId: 'roadmap',
+          styles: [
+            { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+            { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+          ],
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+        });
+      }
+
+      // Clear existing markers
+      markersRef.current.forEach(m => m.setMap(null));
+      markersRef.current = [];
+
+      // Add markers for each lead
+      leads.forEach(lead => {
+        const coords = getLeadCoords(lead);
+        if (!coords) return;
+        const color = TRADE_COLORS[lead.trade] || TRADE_COLORS.DEFAULT;
+        const isSelected = selectedLead?.id === lead.id;
+
+        const marker = new maps.Marker({
+          position: { lat: coords[0], lng: coords[1] },
+          map: mapInstance.current,
+          title: lead.title,
+          icon: {
+            path: maps.SymbolPath.CIRCLE,
+            fillColor: color,
+            fillOpacity: isSelected ? 1 : 0.75,
+            strokeColor: 'white',
+            strokeWeight: isSelected ? 3 : 2,
+            scale: isSelected ? 14 : Math.min(10, Math.max(6, Math.log10((lead.value || 10000) + 1) * 3)),
+          },
+          zIndex: isSelected ? 1000 : lead.score || 50,
+        });
+
+        const infoWindow = new maps.InfoWindow({
+          content: `
+            <div style="font-family:-apple-system,sans-serif;max-width:280px;padding:4px">
+              <div style="font-size:13px;font-weight:600;color:#111827;line-height:1.4">${lead.title?.slice(0,80) || ''}</div>
+              <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+                <span style="background:${color}22;color:${color};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600">${lead.trade}</span>
+                <span style="font-size:15px;font-weight:700;color:#111827">${formatVal(lead.value)}</span>
+              </div>
+              <div style="margin-top:6px;font-size:12px;color:#6b7280">📍 ${lead.addr || ''}</div>
+              <a href="/leads/${lead.id}" style="display:inline-block;margin-top:10px;background:#1d4ed8;color:white;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">View Lead →</a>
+            </div>
+          `,
+        });
+
+        marker.addListener('click', () => {
+          onSelect(lead);
+          infoWindow.open(mapInstance.current, marker);
+        });
+
+        markersRef.current.push(marker);
+      });
+    });
+  }, [leads, apiKey, selectedLead]);
+
+  if (!apiKey) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-100 rounded-xl">
+        <div className="text-center p-8">
+          <div className="text-4xl mb-3">🗺️</div>
+          <p className="text-gray-500 font-medium">Map requires Google Maps API key</p>
+          <p className="text-xs text-gray-400 mt-1">Add GOOGLE_MAPS_API_KEY to .env</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <div ref={mapRef} className="w-full h-full rounded-xl" />;
+}
+
+// ── States for filter ─────────────────────────────────────────────────────────
+const STATES = ['TX','IL','FL','CA','NY','WA','AZ','CO','TN','GA','MO','NC','DC','IN','KY','PA'];
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+export default function MarketMaps() {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedTrade, setSelectedTrade] = useState('');
+  const [marketData, setMarketData] = useState(null);
+  const [mapsApiKey, setMapsApiKey] = useState('');
+
+  // Get Google Maps API key from backend config
+  useEffect(() => {
+    fetch('/api/config').then(r => r.json()).then(cfg => {
+      setMapsApiKey(cfg.google_maps_api_key || '');
+    }).catch(() => {});
+  }, []);
+
+  const fetchLeads = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      const [market, leads] = await Promise.all([
-        getMarket(state),
-        getLeads({ state, limit: 50 }),
-      ]);
-      setMarketData(market);
-      setMapLeads(leads);
+      const params = { limit: 100, sort_by: 'score' };
+      if (selectedState) params.state = selectedState;
+      if (selectedTrade) params.trade = selectedTrade;
+      const env = await getLeads(params);
+      const data = Array.isArray(env) ? env : (env.data || []);
+      setLeads(data);
     } catch (err) {
-      setError(err.message);
+      console.error('Failed to load leads for map', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedState, selectedTrade]);
+
+  useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   useEffect(() => {
     if (selectedState) {
-      fetchMarketData(selectedState);
+      getMarket(selectedState).then(setMarketData).catch(() => {});
+    } else {
+      setMarketData(null);
     }
-  }, [selectedState, fetchMarketData]);
+  }, [selectedState]);
 
-  // Prepare map markers from leads
-  const mapMarkers = mapLeads
-    .filter((lead) => lead.lat && lead.lng)
-    .map((lead) => ({
-      id: lead.id,
-      lat: Number(lead.lat),
-      lng: Number(lead.lng),
-      label: lead.title || lead.desc?.slice(0, 60) || 'Lead',
-      sublabel: lead.trade,
-      value: formatCurrency(lead.value),
-    }));
+  const tradeBreakdown = useMemo(() => {
+    const counts = {};
+    leads.forEach(l => { counts[l.trade] = (counts[l.trade] || 0) + 1; });
+    return Object.entries(counts).sort((a,b) => b[1]-a[1]).map(([name, value]) => ({ name, value }));
+  }, [leads]);
 
-  // Prepare trade chart data
-  const tradeChartData = marketData?.trade_breakdown
-    ? Object.entries(marketData.trade_breakdown).map(([name, value]) => ({
-        name: name.charAt(0) + name.slice(1).toLowerCase(),
-        value,
-      }))
-    : [];
+  const totalValue = useMemo(() => leads.reduce((s, l) => s + (l.value || 0), 0), [leads]);
 
-  const stateCenter = STATE_CENTERS[selectedState] || [39.8283, -98.5795];
+  const tradeOptions = ['ELECTRICAL','PLUMBING','HVAC','ROOFING','CONCRETE','GENERAL'];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Market Intelligence</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Explore construction activity and market trends by state</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-gray-700">Select State:</label>
-          <select
-            value={selectedState}
-            onChange={(e) => setSelectedState(e.target.value)}
-            className="select-field w-52"
-          >
-            {US_STATES.filter((s) => s.value).map((s) => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </select>
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <select value={selectedState} onChange={e => setSelectedState(e.target.value)}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+          <option value="">All States</option>
+          {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={selectedTrade} onChange={e => setSelectedTrade(e.target.value)}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+          <option value="">All Trades</option>
+          {tradeOptions.map(t => <option key={t} value={t}>{TRADE_EMOJI[t]} {t}</option>)}
+        </select>
+        <div className="ml-auto text-sm text-gray-500">
+          {loading ? 'Loading...' : `${leads.length} leads · ${formatVal(totalValue)} total value`}
         </div>
       </div>
 
-      {/* Error state */}
-      {error && (
-        <div className="rounded-lg bg-red-50 p-4">
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      {/* Stats cards */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-pulse">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="card p-6">
-              <div className="h-4 w-24 bg-gray-200 rounded" />
-              <div className="mt-3 h-8 w-16 bg-gray-200 rounded" />
-            </div>
-          ))}
-        </div>
-      ) : marketData && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <StatsCard
-            title="Total Leads"
-            value={(marketData.total_leads || 0).toLocaleString()}
-            icon={
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
-            }
-            color="primary"
-          />
-          <StatsCard
-            title="Average Project Value"
-            value={formatCurrency(marketData.avg_value || 0)}
-            icon={
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            }
-            color="green"
-          />
-          <StatsCard
-            title="Active Contractors"
-            value={(marketData.top_contractors?.length || 0).toLocaleString()}
-            icon={
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-              </svg>
-            }
-            color="blue"
+      {/* Map + Stats row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Map */}
+        <div className="lg:col-span-2 h-[500px] rounded-xl overflow-hidden shadow-sm border border-gray-200">
+          <GoogleMapView
+            leads={leads}
+            apiKey={mapsApiKey}
+            selectedLead={selectedLead}
+            onSelect={setSelectedLead}
           />
         </div>
-      )}
 
-      {/* Map */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">
-          Lead Map - {US_STATES.find((s) => s.value === selectedState)?.label || selectedState}
-          {mapMarkers.length > 0 && (
-            <span className="ml-2 text-xs font-normal text-gray-400">
-              ({mapMarkers.length} mapped leads)
-            </span>
-          )}
-        </h3>
-        {loading ? (
-          <div className="h-96 bg-gray-100 rounded-xl animate-pulse" />
-        ) : (
-          <MapView
-            markers={mapMarkers}
-            center={stateCenter}
-            zoom={mapMarkers.length > 0 ? 7 : 6}
-            height="450px"
-          />
-        )}
-      </div>
-
-      {/* Bottom grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Trade breakdown chart */}
-        <ChartWidget
-          type="bar"
-          title="Trade Distribution"
-          subtitle={`Construction activity breakdown in ${US_STATES.find((s) => s.value === selectedState)?.label || selectedState}`}
-          data={tradeChartData}
-          height={280}
-        />
-
-        {/* Top contractors */}
-        <div className="card p-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-1">Top Contractors</h3>
-          <p className="text-xs text-gray-500 mb-4">Most active contractors in this market</p>
-          {loading ? (
-            <div className="animate-pulse space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-6 h-4 bg-gray-200 rounded" />
-                  <div className="h-4 flex-1 bg-gray-200 rounded" />
-                  <div className="w-12 h-4 bg-gray-200 rounded" />
-                </div>
-              ))}
-            </div>
-          ) : marketData?.top_contractors?.length > 0 ? (
-            <div className="space-y-3">
-              {marketData.top_contractors.slice(0, 10).map((contractor, index) => {
-                const maxPermits = marketData.top_contractors[0].permits;
-                const percentage = maxPermits > 0 ? (contractor.permits / maxPermits) * 100 : 0;
-                return (
-                  <div key={contractor.name} className="flex items-center gap-3">
-                    <span className="text-xs font-medium text-gray-400 w-5 text-right">{index + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-900 truncate">{contractor.name}</span>
-                        <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
-                          {contractor.permits} permit{contractor.permits !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary-500 rounded-full transition-all duration-500"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+        {/* Stats sidebar */}
+        <div className="space-y-4">
+          {/* Selected lead card */}
+          {selectedLead ? (
+            <div className="card p-4 border-primary-200 ring-1 ring-primary-100">
+              <div className="flex items-start justify-between mb-2">
+                <span className={`text-xs font-semibold rounded-full px-2 py-0.5`}
+                  style={{background: (TRADE_COLORS[selectedLead.trade]||'#1d4ed8')+'22', color: TRADE_COLORS[selectedLead.trade]||'#1d4ed8'}}>
+                  {TRADE_EMOJI[selectedLead.trade]||'📋'} {selectedLead.trade}
+                </span>
+                <button onClick={() => setSelectedLead(null)} className="text-gray-300 hover:text-gray-500">✕</button>
+              </div>
+              <p className="text-sm font-semibold text-gray-900 line-clamp-3">{selectedLead.title}</p>
+              <p className="text-xl font-bold text-gray-900 mt-2">{formatVal(selectedLead.value)}</p>
+              <p className="text-xs text-gray-500 mt-1">📍 {selectedLead.addr}</p>
+              <Link to={`/leads/${selectedLead.id}`} className="mt-3 btn-primary text-xs block text-center">View Full Lead →</Link>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 py-8 text-center">No contractor data for this market</p>
+            <div className="card p-4 text-center text-sm text-gray-400">
+              <div className="text-2xl mb-1">📍</div>
+              Click any marker to see lead details
+            </div>
+          )}
+
+          {/* Trade breakdown */}
+          {tradeBreakdown.length > 0 && (
+            <div className="card p-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Trade Breakdown</h3>
+              <div className="space-y-2">
+                {tradeBreakdown.slice(0, 6).map(({ name, value }) => {
+                  const pct = Math.round((value / leads.length) * 100);
+                  return (
+                    <div key={name}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-medium text-gray-700">{TRADE_EMOJI[name]||'📋'} {name}</span>
+                        <span className="text-gray-500">{value} leads ({pct}%)</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{width:`${pct}%`, background: TRADE_COLORS[name]||'#1d4ed8'}} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Market stats */}
+          {marketData && selectedState && (
+            <div className="card p-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">📊 {selectedState} Market</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-gray-500">Total Leads</span><span className="font-semibold">{marketData.total_leads}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Avg Value</span><span className="font-semibold">{formatVal(marketData.avg_value)}</span></div>
+                {marketData.top_contractors?.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Top Contractors</p>
+                    {marketData.top_contractors.slice(0,3).map(c => (
+                      <div key={c.name} className="flex justify-between text-xs py-1 border-b border-gray-100">
+                        <span className="text-gray-700 truncate">{c.name}</span>
+                        <span className="text-gray-500 ml-2">{c.permits} permits</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
+      </div>
+
+      {/* Lead list below map */}
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">
+          {selectedState || selectedTrade ? `Filtered Leads (${leads.length})` : `All Leads on Map (${leads.length})`}
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {leads.slice(0, 9).map(lead => (
+            <Link key={lead.id} to={`/leads/${lead.id}`}
+              className={`card p-3 hover:shadow-md transition-all cursor-pointer ${selectedLead?.id === lead.id ? 'ring-2 ring-primary-500' : ''}`}
+              onClick={() => setSelectedLead(lead)}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium rounded px-1.5 py-0.5"
+                  style={{background: (TRADE_COLORS[lead.trade]||'#1d4ed8')+'18', color: TRADE_COLORS[lead.trade]||'#1d4ed8'}}>
+                  {TRADE_EMOJI[lead.trade]||'📋'} {lead.trade}
+                </span>
+                <span className="ml-auto text-xs font-bold text-gray-700">{formatVal(lead.value)}</span>
+              </div>
+              <p className="text-xs font-semibold text-gray-800 line-clamp-2">{lead.title}</p>
+              <p className="text-xs text-gray-400 mt-1 truncate">📍 {lead.addr}</p>
+            </Link>
+          ))}
+        </div>
+        {leads.length > 9 && (
+          <Link to="/leads" className="mt-3 inline-flex items-center text-sm text-primary-600 hover:underline">
+            View all {leads.length} leads →
+          </Link>
+        )}
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ from shared.logging_config import get_logger
 from shared.utils import extract_keywords, generate_id, normalize_phone
 
 from .deduplicator import generate_contractor_id, generate_lead_id
+from .enricher import enrich_lead
 from .normalizer import normalize_bid_record, normalize_permit_record
 from .scorer import score_lead
 from .trade_classifier import classify_trade
@@ -58,6 +59,9 @@ async def process_batch(source_type: str, storage_path: str) -> dict[str, Any]:
                 continue
 
             if lead:
+                # AI enrichment — adds project_type, owner_type, materials, urgency
+                lead = await enrich_lead(lead)
+
                 # Store in Firestore
                 firestore.leads().document(lead["id"]).set(lead, merge=True)
                 leads_stored += 1

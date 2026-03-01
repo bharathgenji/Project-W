@@ -1,47 +1,164 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getLead, getLeads } from '../api/client';
-import MapView from '../components/MapView';
 import LeadCard from '../components/LeadCard';
 
-function formatCurrency(value) {
-  if (!value && value !== 0) return '--';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+const TRADE_COLORS = {
+  ELECTRICAL:'#f59e0b', PLUMBING:'#3b82f6', HVAC:'#06b6d4',
+  ROOFING:'#f97316', CONCRETE:'#6b7280', GENERAL:'#8b5cf6', DEFAULT:'#1d4ed8',
+};
+const TRADE_EMOJI = { ELECTRICAL:'⚡', PLUMBING:'🔧', HVAC:'❄️', ROOFING:'🏠', CONCRETE:'🏗️', GENERAL:'🔨', DEFAULT:'📋' };
+
+function fmt(v) {
+  if (!v && v !== 0) return '--';
+  if (v >= 1e6) return `$${(v/1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `$${Math.round(v/1e3)}K`;
+  return `$${Number(v).toLocaleString()}`;
+}
+function fmtDate(s) {
+  if (!s) return '--';
+  try { return new Date(s).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' }); }
+  catch { return s; }
+}
+function relDate(s) {
+  if (!s) return null;
+  const days = Math.floor((Date.now() - new Date(s).getTime()) / 86400000);
+  if (days === 0) return 'Today'; if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`; if (days < 30) return `${Math.floor(days/7)} weeks ago`;
+  return `${Math.floor(days/30)} months ago`;
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '--';
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
+function ScoreRing({ score }) {
+  const color = score >= 80 ? '#10b981' : score >= 60 ? '#3b82f6' : score >= 40 ? '#f59e0b' : '#9ca3af';
+  const label = score >= 80 ? 'Hot 🔥' : score >= 60 ? 'Warm' : score >= 40 ? 'Fair' : 'Low';
+  const r = 30, circ = 2 * Math.PI * r, dash = (score / 100) * circ;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <svg width="80" height="80" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r={r} fill="none" stroke="#f3f4f6" strokeWidth="8"/>
+        <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="8"
+          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+          transform="rotate(-90 40 40)" style={{transition:'stroke-dasharray 1s ease'}}/>
+        <text x="40" y="44" textAnchor="middle" fontSize="18" fontWeight="700" fill={color}>{score}</text>
+      </svg>
+      <span className="text-xs font-semibold" style={{color}}>{label}</span>
+    </div>
+  );
 }
 
-function getScoreColor(score) {
-  if (score >= 80) return 'bg-emerald-500';
-  if (score >= 60) return 'bg-blue-500';
-  if (score >= 40) return 'bg-amber-500';
-  return 'bg-gray-400';
+// ── AI Enrichment Panel ──────────────────────────────────────────────────────
+const PROJECT_TYPE_LABELS = {
+  new_build: { label: 'New Construction', color: 'bg-emerald-100 text-emerald-800', icon: '🏗️' },
+  renovation: { label: 'Renovation', color: 'bg-blue-100 text-blue-800', icon: '🔨' },
+  repair: { label: 'Repair', color: 'bg-amber-100 text-amber-800', icon: '🔧' },
+  addition: { label: 'Addition', color: 'bg-purple-100 text-purple-800', icon: '➕' },
+  compliance: { label: 'Compliance', color: 'bg-gray-100 text-gray-800', icon: '📋' },
+};
+const OWNER_TYPE_LABELS = {
+  residential: { label: 'Residential', color: 'bg-sky-100 text-sky-800', icon: '🏘️' },
+  small_commercial: { label: 'Small Commercial', color: 'bg-indigo-100 text-indigo-800', icon: '🏪' },
+  large_commercial: { label: 'Large Commercial', color: 'bg-violet-100 text-violet-800', icon: '🏢' },
+  institutional: { label: 'Institutional / Gov', color: 'bg-rose-100 text-rose-800', icon: '🏛️' },
+  industrial: { label: 'Industrial', color: 'bg-orange-100 text-orange-800', icon: '🏭' },
+};
+
+function AIEnrichmentPanel({ ai }) {
+  if (!ai) return null;
+  const pt = PROJECT_TYPE_LABELS[ai.project_type] || { label: ai.project_type, color: 'bg-gray-100 text-gray-700', icon: '📋' };
+  const ot = OWNER_TYPE_LABELS[ai.owner_type] || { label: ai.owner_type, color: 'bg-gray-100 text-gray-700', icon: '👤' };
+  return (
+    <div className="card p-5 border-purple-200 bg-gradient-to-br from-white to-purple-50">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-6 h-6 rounded-md bg-purple-600 flex items-center justify-center">
+          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          </svg>
+        </div>
+        <h3 className="text-sm font-semibold text-gray-900">AI Analysis</h3>
+        <span className="ml-auto text-[10px] font-medium text-purple-600 bg-purple-100 rounded-full px-2 py-0.5">Powered by Claude</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Project Type</p>
+          <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${pt.color}`}>
+            {pt.icon} {pt.label}
+          </span>
+        </div>
+        <div>
+          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Owner Type</p>
+          <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${ot.color}`}>
+            {ot.icon} {ot.label}
+          </span>
+        </div>
+        {ai.sqft && (
+          <div>
+            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Square Footage</p>
+            <p className="text-sm font-bold text-gray-900">{ai.sqft.toLocaleString()} sqft</p>
+          </div>
+        )}
+        {ai.units && (
+          <div>
+            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Units</p>
+            <p className="text-sm font-bold text-gray-900">{ai.units} units</p>
+          </div>
+        )}
+      </div>
+      {ai.key_materials?.length > 0 && (
+        <div>
+          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">Key Materials</p>
+          <div className="flex flex-wrap gap-1.5">
+            {ai.key_materials.map((m, i) => (
+              <span key={i} className="rounded-md bg-white border border-gray-200 px-2 py-0.5 text-xs text-gray-700 shadow-sm">{m}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {(ai.urgency || ai.complexity) && (
+        <div className="mt-3 pt-3 border-t border-purple-100 flex gap-4">
+          {ai.urgency && <div className="text-xs"><span className="text-gray-400">Urgency: </span>
+            <span className={`font-semibold ${ai.urgency === 'high' ? 'text-red-600' : ai.urgency === 'medium' ? 'text-amber-600' : 'text-gray-600'}`}>{ai.urgency}</span></div>}
+          {ai.complexity && <div className="text-xs"><span className="text-gray-400">Complexity: </span>
+            <span className="font-semibold text-gray-700">{ai.complexity}</span></div>}
+        </div>
+      )}
+    </div>
+  );
 }
 
-function getScoreLabel(score) {
-  if (score >= 80) return 'Hot Lead';
-  if (score >= 60) return 'Warm Lead';
-  if (score >= 40) return 'Moderate';
-  return 'Low Priority';
+// ── Contact Card ──────────────────────────────────────────────────────────────
+function ContactCard({ title, icon, name, phone, email, license, children }) {
+  if (!name && !children) return (
+    <div className="card p-5">
+      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">{icon} {title}</h3>
+      <p className="text-sm text-gray-400">No information available</p>
+    </div>
+  );
+  return (
+    <div className="card p-5">
+      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">{icon} {title}</h3>
+      {children || (
+        <div className="space-y-2">
+          {name && <p className="font-semibold text-gray-900">{name}</p>}
+          {phone && (
+            <a href={`tel:${phone}`} className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-800 font-medium group">
+              <span className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center group-hover:bg-primary-100 transition-colors">📞</span>
+              {phone}
+            </a>
+          )}
+          {email && (
+            <a href={`mailto:${email}`} className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-800 font-medium group">
+              <span className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center group-hover:bg-primary-100 transition-colors">✉️</span>
+              {email}
+            </a>
+          )}
+          {license && <p className="text-xs text-gray-500 mt-1">🪪 License: {license}</p>}
+        </div>
+      )}
+    </div>
+  );
 }
 
+// ── Main component ─────────────────────────────────────────────────────────────
 export default function LeadDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -49,316 +166,219 @@ export default function LeadDetail() {
   const [similarLeads, setSimilarLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null);
       try {
-        const leadData = await getLead(id);
-        if (leadData.error) {
-          setError(leadData.error);
-          return;
+        const data = await getLead(id);
+        if (data.error) { setError(data.error); return; }
+        setLead(data);
+        if (data.trade) {
+          const env = await getLeads({ trade: data.trade, limit: 6 }).catch(() => ({ data: [] }));
+          const list = Array.isArray(env) ? env : (env.data || []);
+          setSimilarLeads(list.filter(l => l.id !== id).slice(0, 3));
         }
-        setLead(leadData);
-
-        // Fetch similar leads (same trade)
-        if (leadData.trade) {
-          try {
-            const similar = await getLeads({ trade: leadData.trade, limit: 4 });
-            setSimilarLeads(similar.filter((l) => l.id !== id).slice(0, 3));
-          } catch {
-            // Not critical if similar leads fail
-          }
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+      } catch (err) { setError(err.message); }
+      finally { setLoading(false); }
     }
     fetchData();
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="animate-pulse space-y-6">
-        <div className="h-8 w-48 bg-gray-200 rounded" />
-        <div className="card p-6 space-y-4">
-          <div className="h-6 w-64 bg-gray-200 rounded" />
-          <div className="h-4 w-96 bg-gray-200 rounded" />
-          <div className="h-4 w-80 bg-gray-200 rounded" />
-        </div>
-        <div className="h-80 bg-gray-200 rounded-xl" />
-      </div>
-    );
-  }
+  const handleSave = async () => {
+    let email = localStorage.getItem('pipeline_email');
+    if (!email) {
+      email = window.prompt('Enter your email to save this lead:');
+      if (!email) return;
+      localStorage.setItem('pipeline_email', email.trim());
+    }
+    const res = await fetch(`/api/pipeline/leads/${id}/save`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_email: email }),
+    });
+    if (res.ok) setSaved(true);
+  };
 
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <svg className="mx-auto w-12 h-12 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-        </svg>
-        <h3 className="mt-3 text-lg font-semibold text-gray-900">{error === 'Lead not found' ? 'Lead Not Found' : 'Error Loading Lead'}</h3>
-        <p className="mt-1 text-sm text-gray-500">{error}</p>
-        <div className="mt-4 flex items-center justify-center gap-3">
-          <button onClick={() => navigate(-1)} className="btn-secondary">Go Back</button>
-          <Link to="/leads" className="btn-primary">Browse Leads</Link>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="animate-pulse space-y-6">
+      <div className="h-6 w-48 bg-gray-200 rounded"/>
+      <div className="card p-6 space-y-4"><div className="h-7 w-2/3 bg-gray-200 rounded"/><div className="h-4 w-1/2 bg-gray-200 rounded"/></div>
+      <div className="grid grid-cols-3 gap-6"><div className="col-span-2 h-64 bg-gray-200 rounded-xl"/><div className="h-64 bg-gray-200 rounded-xl"/></div>
+    </div>
+  );
 
-  if (!lead) return null;
+  if (error || !lead) return (
+    <div className="text-center py-16">
+      <div className="text-5xl mb-4">🔍</div>
+      <h3 className="text-lg font-semibold text-gray-900">{error === 'Lead not found' ? 'Lead Not Found' : 'Error'}</h3>
+      <p className="text-gray-500 mt-1">{error}</p>
+      <div className="mt-5 flex justify-center gap-3">
+        <button onClick={() => navigate(-1)} className="btn-secondary">← Back</button>
+        <Link to="/leads" className="btn-primary">Browse Leads</Link>
+      </div>
+    </div>
+  );
 
   const score = lead.score || 0;
   const gc = lead.gc || {};
   const owner = lead.owner || {};
-
-  // Prepare map markers
-  const mapMarkers = [];
-  if (lead.lat && lead.lng) {
-    mapMarkers.push({
-      lat: lead.lat,
-      lng: lead.lng,
-      label: lead.title || lead.desc?.slice(0, 60) || 'Lead Location',
-      sublabel: lead.addr,
-      value: formatCurrency(lead.value),
-    });
-  }
+  const ai = lead.ai;
+  const tradeColor = TRADE_COLORS[lead.trade] || TRADE_COLORS.DEFAULT;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm">
-        <Link to="/leads" className="text-gray-500 hover:text-gray-700">Leads</Link>
-        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-        </svg>
-        <span className="text-gray-900 font-medium truncate max-w-xs">
-          {lead.title || lead.desc?.slice(0, 40) || lead.id}
-        </span>
+      <nav className="flex items-center gap-2 text-sm text-gray-500">
+        <Link to="/leads" className="hover:text-gray-700">Leads</Link>
+        <span>›</span>
+        <span className="text-gray-900 font-medium truncate max-w-sm">{lead.trade} · {lead.type}</span>
       </nav>
 
-      {/* Header */}
-      <div className="card p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      {/* Hero header */}
+      <div className="card p-6 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-5" style={{background: tradeColor, transform: 'translate(30%, -30%)'}}/>
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-gray-900">
-              {lead.title || lead.desc?.slice(0, 100) || 'Untitled Lead'}
-            </h1>
-            <div className="mt-2 flex items-center gap-3 flex-wrap">
-              {lead.trade && (
-                <span className="inline-flex items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-primary-600/20">
-                  {lead.trade}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-semibold"
+                style={{background: tradeColor + '18', color: tradeColor}}>
+                {TRADE_EMOJI[lead.trade]||'📋'} {lead.trade}
+              </span>
+              <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-600 capitalize">{lead.type}</span>
+              {lead.deadline && (
+                <span className="rounded-lg bg-red-50 border border-red-200 px-2.5 py-1 text-sm font-medium text-red-700">
+                  ⏰ Due {relDate(lead.deadline)}
                 </span>
               )}
-              {lead.type && (
-                <span className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 capitalize">
-                  {lead.type}
-                </span>
-              )}
-              {lead.status && (
-                <span className="inline-flex items-center rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 capitalize">
-                  {lead.status}
-                </span>
-              )}
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug">{lead.title}</h1>
+            <div className="mt-3 flex items-center gap-4 flex-wrap text-sm text-gray-500">
+              <span>📍 {lead.addr || '--'}</span>
+              <span>🕐 {relDate(lead.posted)} · {fmtDate(lead.posted)}</span>
             </div>
           </div>
-          {/* Score */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <ScoreRing score={score} />
             <div className="text-right">
-              <p className="text-xs text-gray-500 font-medium">{getScoreLabel(score)}</p>
-            </div>
-            <div className={`flex items-center justify-center w-16 h-16 rounded-2xl ${getScoreColor(score)} text-white font-bold text-2xl shadow-lg`}>
-              {score}
+              <p className="text-3xl font-black text-gray-900">{fmt(lead.value)}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Est. Project Value</p>
             </div>
           </div>
         </div>
+        {/* Action buttons */}
+        <div className="mt-5 flex flex-wrap gap-2 pt-5 border-t border-gray-100">
+          <button onClick={handleSave} disabled={saved}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${saved ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'btn-primary'}`}>
+            {saved ? '❤️ Saved to Pipeline' : '🤍 Save to Pipeline'}
+          </button>
+          {(owner.p || gc.p) && (
+            <a href={`tel:${owner.p || gc.p}`} className="flex items-center gap-2 btn-secondary text-sm">
+              📞 Call Now
+            </a>
+          )}
+          {(owner.e || gc.e) && (
+            <a href={`mailto:${owner.e || gc.e}`} className="flex items-center gap-2 btn-secondary text-sm">
+              ✉️ Email
+            </a>
+          )}
+          <Link to={`/alerts?trade=${lead.trade}&state=${(lead.addr||'').split(',').slice(-2,-1)[0]?.trim()||''}`}
+            className="flex items-center gap-2 btn-secondary text-sm">
+            🔔 Set Alert for Similar
+          </Link>
+        </div>
       </div>
 
-      {/* Details grid */}
+      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main details */}
+        {/* Left: Details + Similar */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Key info */}
-          <div className="card p-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Project Details</h2>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+          {/* AI Enrichment */}
+          {ai && <AIEnrichmentPanel ai={ai} />}
+
+          {/* Project details */}
+          <div className="card p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">📄 Project Details</h2>
+            <dl className="grid grid-cols-2 gap-4">
               <div>
-                <dt className="text-xs font-medium text-gray-500">Estimated Value</dt>
-                <dd className="mt-1 text-lg font-bold text-gray-900">{formatCurrency(lead.value)}</dd>
+                <dt className="text-xs text-gray-400 uppercase tracking-wider mb-1">Type</dt>
+                <dd className="text-sm font-semibold text-gray-900 capitalize">{lead.type || '--'}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium text-gray-500">Posted Date</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatDate(lead.posted)}</dd>
+                <dt className="text-xs text-gray-400 uppercase tracking-wider mb-1">Source</dt>
+                <dd className="text-sm font-semibold text-gray-900">{lead.src || '--'}</dd>
               </div>
-              <div className="sm:col-span-2">
-                <dt className="text-xs font-medium text-gray-500">Address</dt>
-                <dd className="mt-1 text-sm text-gray-900">{lead.addr || '--'}</dd>
-              </div>
-              {lead.desc && (
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium text-gray-500">Description</dt>
-                  <dd className="mt-1 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{lead.desc}</dd>
+              {lead.deadline && (
+                <div className="col-span-2">
+                  <dt className="text-xs text-gray-400 uppercase tracking-wider mb-1">Submission Deadline</dt>
+                  <dd className="text-sm font-bold text-red-600">{fmtDate(lead.deadline)} ({relDate(lead.deadline)})</dd>
                 </div>
               )}
-              {lead.permit_no && (
-                <div>
-                  <dt className="text-xs font-medium text-gray-500">Permit Number</dt>
-                  <dd className="mt-1 text-sm text-gray-900 font-mono">{lead.permit_no}</dd>
-                </div>
-              )}
-              {lead.source && (
-                <div>
-                  <dt className="text-xs font-medium text-gray-500">Source</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{lead.source}</dd>
+              {lead.keywords?.length > 0 && (
+                <div className="col-span-2">
+                  <dt className="text-xs text-gray-400 uppercase tracking-wider mb-2">Keywords</dt>
+                  <dd className="flex flex-wrap gap-1.5">
+                    {lead.keywords.slice(0, 12).map(k => (
+                      <span key={k} className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{k}</span>
+                    ))}
+                  </dd>
                 </div>
               )}
             </dl>
           </div>
 
-          {/* Map */}
-          {mapMarkers.length > 0 && (
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Location</h2>
-              <MapView
-                markers={mapMarkers}
-                center={[mapMarkers[0].lat, mapMarkers[0].lng]}
-                zoom={14}
-                height="350px"
-              />
-            </div>
-          )}
-
-          {/* Similar leads */}
+          {/* Similar Leads */}
           {similarLeads.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-gray-900">Similar Leads</h2>
-                <Link to={`/leads?trade=${lead.trade}`} className="text-xs font-medium text-primary-600 hover:text-primary-700">
-                  View more
-                </Link>
+                <h2 className="text-sm font-semibold text-gray-900">Similar {lead.trade} Leads</h2>
+                <Link to={`/leads?trade=${lead.trade}`} className="text-xs text-primary-600 hover:underline">View all →</Link>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {similarLeads.map((sl) => (
-                  <LeadCard key={sl.id} lead={sl} />
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {similarLeads.map(sl => <LeadCard key={sl.id} lead={sl} compact />)}
               </div>
             </div>
           )}
         </div>
 
-        {/* Right sidebar */}
-        <div className="space-y-6">
-          {/* Contractor / GC */}
-          <div className="card p-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
-                </svg>
-                General Contractor
-              </div>
-            </h2>
-            {gc.n ? (
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{gc.n}</p>
-                  {gc.phone && (
-                    <a href={`tel:${gc.phone}`} className="block text-sm text-primary-600 hover:text-primary-700 mt-1">
-                      {gc.phone}
-                    </a>
-                  )}
-                  {gc.email && (
-                    <a href={`mailto:${gc.email}`} className="block text-sm text-primary-600 hover:text-primary-700 mt-0.5">
-                      {gc.email}
-                    </a>
-                  )}
-                  {gc.lic && (
-                    <p className="text-xs text-gray-500 mt-1">License: {gc.lic}</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">No contractor information available</p>
-            )}
-          </div>
-
+        {/* Right: Contacts + Score */}
+        <div className="space-y-4">
           {/* Owner */}
-          <div className="card p-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
-                Property Owner
-              </div>
-            </h2>
-            {owner.n || owner.name ? (
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-gray-900">{owner.n || owner.name}</p>
-                {(owner.phone) && (
-                  <a href={`tel:${owner.phone}`} className="block text-sm text-primary-600 hover:text-primary-700">
-                    {owner.phone}
-                  </a>
-                )}
-                {(owner.email) && (
-                  <a href={`mailto:${owner.email}`} className="block text-sm text-primary-600 hover:text-primary-700">
-                    {owner.email}
-                  </a>
-                )}
-                {(owner.addr) && (
-                  <p className="text-xs text-gray-500">{owner.addr}</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">No owner information available</p>
-            )}
-          </div>
+          <ContactCard title="Property Owner" icon="👤" name={owner.n} phone={owner.p} email={owner.e} />
+
+          {/* GC */}
+          <ContactCard title="General Contractor" icon="🏗️" name={gc.n} phone={gc.p} email={gc.e} license={gc.lic} />
 
           {/* Score breakdown */}
-          <div className="card p-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Score Breakdown</h2>
-            <div className="space-y-3">
-              {[
-                { label: 'Data Quality', value: lead.score_data || Math.min(score, 30), max: 30 },
-                { label: 'Recency', value: lead.score_recency || Math.min(Math.max(score - 20, 0), 25), max: 25 },
-                { label: 'Value Signal', value: lead.score_value || Math.min(Math.max(score - 30, 0), 25), max: 25 },
-                { label: 'Market Fit', value: lead.score_market || Math.max(score - 60, 0), max: 20 },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-gray-600">{item.label}</span>
-                    <span className="font-semibold text-gray-900">{item.value}/{item.max}</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary-500 rounded-full transition-all duration-500"
-                      style={{ width: `${(item.value / item.max) * 100}%` }}
-                    />
-                  </div>
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">📊 Score Breakdown</h3>
+            {[
+              { label: 'Value Signal', val: Math.min(score >= 80 ? 25 : Math.round(score * 0.28), 25), max: 25 },
+              { label: 'Recency', val: Math.min(score >= 80 ? 25 : Math.round(score * 0.27), 25), max: 25 },
+              { label: 'Contact Quality', val: Math.min(score >= 80 ? 30 : Math.round(score * 0.30), 30), max: 30 },
+              { label: 'Market Fit', val: Math.min(score >= 80 ? 20 : Math.round(score * 0.15), 20), max: 20 },
+            ].map(({ label, val, max }) => (
+              <div key={label} className="mb-3">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-600">{label}</span>
+                  <span className="font-semibold text-gray-800">{val}/{max}</span>
                 </div>
-              ))}
-            </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-primary-500 transition-all" style={{width:`${(val/max)*100}%`}}/>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Actions */}
-          <div className="card p-6 space-y-3">
-            <h2 className="text-sm font-semibold text-gray-900 mb-2">Actions</h2>
-            <button className="btn-primary w-full justify-center">
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-              </svg>
-              Set Alert for Similar
-            </button>
-            <button className="btn-secondary w-full justify-center">
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-              </svg>
-              Share Lead
-            </button>
+          {/* Source metadata */}
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">🔗 Data Source</h3>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">Source ID</span><span className="font-mono text-xs text-gray-700">{lead.src || '--'}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Lead ID</span><span className="font-mono text-xs text-gray-400 truncate ml-2">{lead.id?.slice(0,12)}…</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Posted</span><span className="text-gray-700">{relDate(lead.posted)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Updated</span><span className="text-gray-700">{relDate(lead.updated)}</span></div>
+            </div>
           </div>
         </div>
       </div>

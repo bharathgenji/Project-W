@@ -24,6 +24,8 @@ def dashboard_stats(
     stats: dict[str, Any] = {
         "total_leads": 0,
         "total_contractors": 0,
+        "total_value": 0,
+        "avg_score": 0,
         "new_today": 0,
         "new_this_week": 0,
         "by_trade": {},
@@ -31,6 +33,7 @@ def dashboard_stats(
         "by_value_range": {"under_50k": 0, "50k_200k": 0, "over_200k": 0},
         "hot_markets": [],
     }
+    score_sum = 0
 
     # Use naive UTC datetimes for comparison (stored posted values are naive ISO strings)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -54,8 +57,12 @@ def dashboard_stats(
         trade = data.get("trade", "UNKNOWN")
         trade_counter[trade] += 1
 
-        # By value
+        # Total value + score
         value = data.get("value") or 0
+        stats["total_value"] += value
+        score_sum += data.get("score") or 0
+
+        # By value
         if value >= 200_000:
             stats["by_value_range"]["over_200k"] += 1
         elif value >= 50_000:
@@ -91,6 +98,8 @@ def dashboard_stats(
                 city_counter[parts[0]] += 1
 
     stats["by_trade"] = dict(trade_counter.most_common(15))
+    if stats["total_leads"]:
+        stats["avg_score"] = round(score_sum / stats["total_leads"])
     stats["hot_markets"] = [
         {"city": city, "count": count}
         for city, count in city_counter.most_common(10)
