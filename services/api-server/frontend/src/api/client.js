@@ -118,3 +118,15 @@ export function deleteAlert(alertId) {
 export function getHealth() {
   return request('/health');
 }
+
+// --------------- Ingest ---------------
+
+export function getIngestStatus() {
+  return request('/ingest/status');
+}
+
+export function runIngest(days = 30, maxPerPortal = 500) {
+  return request(`/ingest/run?days=${days}&max_per_portal=${maxPerPortal}`, {
+    method: 'POST',
+  });
+}

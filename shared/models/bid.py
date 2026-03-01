@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class BidLocation(BaseModel):
@@ -16,6 +16,11 @@ class BidContact(BaseModel):
     email: str = ""
     phone: str = ""
     role: str = ""
+
+    @field_validator("name", "email", "phone", "role", mode="before")
+    @classmethod
+    def coerce_none_to_str(cls, v: object) -> str:
+        return v if isinstance(v, str) else ""
 
 
 class BidDocument(BaseModel):

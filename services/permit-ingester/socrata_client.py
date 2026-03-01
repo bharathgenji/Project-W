@@ -27,6 +27,7 @@ class SocrataClient:
             self._client = httpx.AsyncClient(
                 headers=headers,
                 timeout=DEFAULT_TIMEOUT,
+                follow_redirects=True,
             )
         return self._client
 
@@ -83,13 +84,27 @@ class SocrataClient:
 
         while offset < max_records:
             limit = min(DEFAULT_LIMIT, max_records - offset)
-            page = await self.fetch_page(
-                domain=domain,
-                dataset_id=dataset_id,
-                offset=offset,
-                limit=limit,
-                where_clause=where_clause,
-            )
+            try:
+                page = await self.fetch_page(
+                    domain=domain,
+                    dataset_id=dataset_id,
+                    offset=offset,
+                    limit=limit,
+                    where_clause=where_clause,
+                )
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 400 and where_clause and offset == 0:
+                    # Date filter field name may be wrong — retry without filter
+                    logger.warning(
+                        "socrata_where_rejected",
+                        domain=domain,
+                        dataset_id=dataset_id,
+                        where=where_clause,
+                        msg="retrying without date filter",
+                    )
+                    where_clause = None
+                    continue
+                raise
             if not page:
                 break
             all_records.extend(page)

@@ -63,17 +63,19 @@ class SamGovClient:
     def _parse_opportunity(self, opp: dict[str, Any], naics_code: str) -> BidRecord:
         """Parse a SAM.gov opportunity into a BidRecord."""
         contacts = []
-        for poc in opp.get("pointOfContact", []):
+        for poc in (opp.get("pointOfContact") or []):
+            if not isinstance(poc, dict):
+                continue
             contacts.append(BidContact(
-                name=poc.get("fullName", ""),
-                email=poc.get("email", ""),
-                phone=poc.get("phone", ""),
-                role=poc.get("type", ""),
+                name=poc.get("fullName") or "",
+                email=poc.get("email") or "",
+                phone=poc.get("phone") or "",
+                role=poc.get("type") or "",
             ))
 
-        place = opp.get("placeOfPerformance", {})
-        city_info = place.get("city", {})
-        state_info = place.get("state", {})
+        place = opp.get("placeOfPerformance") or {}
+        city_info = place.get("city") or {}
+        state_info = place.get("state") or {}
 
         return BidRecord(
             source="sam.gov",

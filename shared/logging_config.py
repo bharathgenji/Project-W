@@ -26,6 +26,13 @@ def setup_logging(level: str = "INFO") -> None:
     )
 
 
+_logging_configured = False
+
+
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
-    """Get a named structured logger."""
+    """Get a named structured logger. Auto-configures structlog on first call."""
+    global _logging_configured
+    if not _logging_configured:
+        setup_logging()
+        _logging_configured = True
     return structlog.get_logger(name)  # type: ignore[return-value]

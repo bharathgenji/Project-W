@@ -1,228 +1,275 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { getLeads } from '../api/client';
-import FilterPanel from '../components/FilterPanel';
-import LeadCard from '../components/LeadCard';
-import LeadTable from '../components/LeadTable';
+import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import { clsx } from 'clsx'
+import { formatDistanceToNow } from 'date-fns'
+import { Search, Filter, Download, ChevronLeft, ChevronRight, MapPin, Clock, LayoutGrid, List, X } from 'lucide-react'
+import { getLeads } from '../api/client'
+import LeadCard from '../components/LeadCard'
 
-const PAGE_SIZE = 20;
+function fmtVal(v) {
+  if (!v && v !== 0) return '—'
+  if (v >= 1e6) return `$${(v/1e6).toFixed(1)}M`
+  if (v >= 1e3) return `$${Math.round(v/1e3)}K`
+  return `$${v}`
+}
+function relDate(s) {
+  try { return formatDistanceToNow(new Date(s), { addSuffix: true }) } catch { return s }
+}
+
+const TRADES = ['ELECTRICAL','PLUMBING','HVAC','ROOFING','CONCRETE','GENERAL']
+const TRADE_BADGE = {
+  ELECTRICAL:'bg-amber-100 text-amber-700', PLUMBING:'bg-blue-100 text-blue-700',
+  HVAC:'bg-cyan-100 text-cyan-700', ROOFING:'bg-orange-100 text-orange-700',
+  CONCRETE:'bg-gray-100 text-gray-700', GENERAL:'bg-violet-100 text-violet-700',
+}
+const SCORE_COLOR = s => s >= 80 ? 'text-emerald-600' : s >= 60 ? 'text-blue-600' : s >= 40 ? 'text-amber-600' : 'text-gray-400'
+
+// ── Table row ─────────────────────────────────────────────────────────────────
+function LeadTableRow({ lead }) {
+  return (
+    <tr className="group border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <td className="py-3 pl-4 pr-3">
+        <Link to={`/leads/${lead.id}`} className="block">
+          <p className="text-sm font-medium text-gray-900 group-hover:text-primary-700 line-clamp-1">{lead.title}</p>
+          {lead.addr && (
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+              <MapPin className="h-3 w-3 shrink-0" />{lead.addr}
+            </p>
+          )}
+        </Link>
+      </td>
+      <td className="py-3 px-3">
+        <span className={clsx('inline-flex items-center rounded px-2 py-0.5 text-xs font-medium', TRADE_BADGE[lead.trade] ?? 'bg-gray-100 text-gray-600')}>
+          {lead.trade}
+        </span>
+      </td>
+      <td className="py-3 px-3">
+        <span className="text-sm font-semibold text-gray-900">{fmtVal(lead.value)}</span>
+      </td>
+      <td className="py-3 px-3">
+        <span className={clsx('text-sm font-bold', SCORE_COLOR(lead.score || 0))}>{lead.score || '—'}</span>
+      </td>
+      <td className="py-3 px-3 text-xs text-gray-400 capitalize">{lead.type || 'permit'}</td>
+      <td className="py-3 pl-3 pr-4 text-xs text-gray-400">
+        {lead.posted ? <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{relDate(lead.posted)}</span> : '—'}
+      </td>
+    </tr>
+  )
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function FilterPanel({ filters, onChange, onClose }) {
+  return (
+    <aside className="w-56 shrink-0 space-y-5">
+      <div className="rounded-card bg-white shadow-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-900">Filters</h3>
+          {onClose && <button onClick={onClose} className="text-gray-400 hover:text-gray-600 lg:hidden"><X className="h-4 w-4" /></button>}
+        </div>
+
+        {/* Trade */}
+        <div className="mb-4">
+          <label className="mb-1.5 block text-xs font-medium text-gray-500 uppercase tracking-wide">Trade</label>
+          <div className="space-y-1">
+            {TRADES.map(t => (
+              <label key={t} className="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" className="rounded border-gray-300 text-primary-700 focus:ring-primary-700"
+                  checked={filters.trades?.includes(t) || false}
+                  onChange={e => {
+                    const cur = filters.trades || []
+                    onChange('trades', e.target.checked ? [...cur, t] : cur.filter(x => x !== t))
+                  }} />
+                <span className="text-sm text-gray-600 group-hover:text-gray-900">{t}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Type */}
+        <div className="mb-4">
+          <label className="mb-1.5 block text-xs font-medium text-gray-500 uppercase tracking-wide">Type</label>
+          <div className="space-y-1">
+            {['permit', 'bid'].map(t => (
+              <label key={t} className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="type" className="border-gray-300 text-primary-700 focus:ring-primary-700"
+                  checked={filters.type === t} onChange={() => onChange('type', t)} />
+                <span className="text-sm text-gray-600 capitalize">{t}s</span>
+              </label>
+            ))}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="type" className="border-gray-300 text-primary-700 focus:ring-primary-700"
+                checked={!filters.type} onChange={() => onChange('type', '')} />
+              <span className="text-sm text-gray-600">All</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Sort */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500 uppercase tracking-wide">Sort by</label>
+          <select value={filters.sort_by || 'score'}
+            onChange={e => onChange('sort_by', e.target.value)}
+            className="input-base text-xs py-1.5">
+            <option value="score">Score</option>
+            <option value="value">Value</option>
+            <option value="posted_date">Newest First</option>
+          </select>
+        </div>
+
+        {/* Clear */}
+        {(filters.trades?.length || filters.type || filters.sort_by !== 'score') && (
+          <button onClick={() => onChange('_reset')} className="mt-3 text-xs text-secondary hover:underline">
+            Clear all filters
+          </button>
+        )}
+      </div>
+    </aside>
+  )
+}
+
+const PAGE_SIZE = 20
 
 export default function LeadBrowser() {
-  const [leads, setLeads] = useState([]);
-  const [total, setTotal] = useState(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [page, setPage] = useState(0);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [viewMode, setViewMode] = useState(() =>
-    window.innerWidth < 768 ? 'cards' : 'table'
-  );
-  const [filters, setFilters] = useState({
-    trade: '', state: '', min_value: '', max_value: '', sort_by: 'score',
-  });
+  const [leads, setLeads] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('table') // 'table' | 'grid'
+  const [search, setSearch] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState({ trades: [], type: '', sort_by: 'score' })
 
-  const fetchLeads = useCallback(async (currentPage, currentFilters) => {
-    setLoading(true);
-    setError(null);
+  const fetchLeads = useCallback(async () => {
+    setLoading(true)
     try {
-      const params = {
-        limit: PAGE_SIZE,
-        offset: currentPage * PAGE_SIZE,
-        sort_by: currentFilters.sort_by || 'score',
-      };
-      if (currentFilters.trade) params.trade = currentFilters.trade;
-      if (currentFilters.state) params.state = currentFilters.state;
-      if (currentFilters.min_value) params.min_value = Number(currentFilters.min_value);
-      if (currentFilters.max_value) params.max_value = Number(currentFilters.max_value);
+      const params = { limit: PAGE_SIZE, offset: page * PAGE_SIZE, sort_by: filters.sort_by || 'score' }
+      if (search) params.query = search
+      if (filters.type) params.type = filters.type
+      if (filters.trades?.length === 1) params.trade = filters.trades[0]
+      const env = await getLeads(params)
+      const data = Array.isArray(env) ? env : (env.data || [])
+      setLeads(data)
+      setTotal(env.total || data.length)
+    } finally { setLoading(false) }
+  }, [page, filters, search])
 
-      // API now returns { data, total, offset, limit, has_more }
-      const envelope = await getLeads(params);
-      const data = Array.isArray(envelope) ? envelope : (envelope.data || []);
-      const tot = typeof envelope.total === 'number' ? envelope.total : null;
+  useEffect(() => { fetchLeads() }, [fetchLeads])
 
-      setLeads(data);
-      setTotal(tot);
-      setHasMore(envelope.has_more ?? data.length === PAGE_SIZE);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const handleFilter = (key, val) => {
+    if (key === '_reset') { setFilters({ trades: [], type: '', sort_by: 'score' }); setPage(0); return }
+    setFilters(f => ({ ...f, [key]: val }))
+    setPage(0)
+  }
 
-  useEffect(() => { fetchLeads(page, filters); }, [page, filters, fetchLeads]);
-
-  const handleFilterChange = (newFilters) => { setFilters(newFilters); setPage(0); };
-  const handleReset = () => { setFilters({ trade: '', state: '', min_value: '', max_value: '', sort_by: 'score' }); setPage(0); };
-
-  // Build export URL from current filters
-  const exportUrl = (() => {
-    const p = new URLSearchParams();
-    if (filters.trade) p.set('trade', filters.trade);
-    if (filters.state) p.set('state', filters.state);
-    if (filters.min_value) p.set('min_value', filters.min_value);
-    if (filters.max_value) p.set('max_value', filters.max_value);
-    return `/api/leads/export?${p.toString()}`;
-  })();
-
-  const start = page * PAGE_SIZE + 1;
-  const end = page * PAGE_SIZE + leads.length;
-  const countText = loading
-    ? 'Loading...'
-    : total !== null
-      ? `${start}–${end} of ${total.toLocaleString()} leads`
-      : leads.length > 0
-        ? `Showing ${start}–${end}`
-        : 'No leads found';
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const activeFilterCount = (filters.trades?.length || 0) + (filters.type ? 1 : 0)
 
   return (
-    <div className="flex gap-6 relative">
-      {/* Mobile filter toggle */}
-      <div className="lg:hidden fixed bottom-6 right-6 z-20">
-        <button
-          onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-          className="btn-primary shadow-lg rounded-full w-14 h-14 flex items-center justify-center"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Mobile filter overlay */}
-      {mobileFiltersOpen && (
-        <div className="fixed inset-0 z-30 lg:hidden">
-          <div className="fixed inset-0 bg-gray-600/75" onClick={() => setMobileFiltersOpen(false)} />
-          <div className="fixed inset-y-0 left-0 w-80 bg-white overflow-y-auto p-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-              <button onClick={() => setMobileFiltersOpen(false)} className="text-gray-400 hover:text-gray-600">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <FilterPanel filters={filters} onChange={(f) => { handleFilterChange(f); setMobileFiltersOpen(false); }} onReset={() => { handleReset(); setMobileFiltersOpen(false); }} />
-          </div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Leads</h1>
+          <p className="mt-0.5 text-sm text-gray-500">{total.toLocaleString()} results</p>
         </div>
-      )}
-
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block w-64 flex-shrink-0">
-        <div className="sticky top-24">
-          <FilterPanel filters={filters} onChange={handleFilterChange} onReset={handleReset} />
+        <div className="flex items-center gap-2">
+          <a href="/api/leads/export" className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs">
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </a>
+          <button onClick={() => setShowFilters(f => !f)}
+            className={clsx('btn btn-secondary btn-sm flex items-center gap-1.5 text-xs lg:hidden', showFilters && 'bg-primary-50 border-primary-300 text-primary-700')}>
+            <Filter className="h-3.5 w-3.5" />
+            Filters {activeFilterCount > 0 && <span className="rounded-full bg-primary-700 text-white text-[10px] w-4 h-4 flex items-center justify-center">{activeFilterCount}</span>}
+          </button>
+          <div className="hidden sm:flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
+            <button onClick={() => setView('table')} className={clsx('rounded p-1.5 transition-colors', view === 'table' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700')}>
+              <List className="h-4 w-4" />
+            </button>
+            <button onClick={() => setView('grid')} className={clsx('rounded p-1.5 transition-colors', view === 'grid' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700')}>
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 min-w-0">
-        {/* Header bar */}
-        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Construction Leads</h2>
-            <p className="text-sm text-gray-500 mt-0.5">{countText}</p>
-          </div>
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <input value={search} onChange={e => { setSearch(e.target.value); setPage(0) }}
+          placeholder="Search by title, address, trade…"
+          className="input-base pl-10" />
+      </div>
 
-          <div className="flex items-center gap-2">
-            {/* View toggle */}
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-              <button
-                onClick={() => setViewMode('table')}
-                title="Table view"
-                className={`px-2.5 py-1.5 text-xs ${viewMode === 'table' ? 'bg-primary-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode('cards')}
-                title="Card view"
-                className={`px-2.5 py-1.5 text-xs ${viewMode === 'cards' ? 'bg-primary-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-                </svg>
-              </button>
-            </div>
-
-            {/* CSV Export */}
-            <a
-              href={exportUrl}
-              download
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
-              Export CSV
-            </a>
-          </div>
+      <div className="flex gap-5 items-start">
+        {/* Filters — desktop always visible, mobile toggle */}
+        <div className={clsx('shrink-0', showFilters ? 'block' : 'hidden lg:block')}>
+          <FilterPanel filters={filters} onChange={handleFilter} onClose={() => setShowFilters(false)} />
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-4 mb-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {/* Cards view (mobile-first) */}
-        {viewMode === 'cards' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {loading
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="card p-5 animate-pulse">
-                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-3" />
-                    <div className="h-3 bg-gray-100 rounded w-1/2 mb-2" />
-                    <div className="h-3 bg-gray-100 rounded w-2/3" />
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {loading ? (
+            <div className="rounded-card bg-white shadow-card">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4 border-b border-gray-50 animate-pulse">
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 w-3/4 bg-gray-100 rounded" />
+                    <div className="h-3 w-1/2 bg-gray-100 rounded" />
                   </div>
-                ))
-              : leads.map((lead) => <LeadCard key={lead.id} lead={lead} />)
-            }
-          </div>
-        )}
+                  <div className="h-5 w-24 bg-gray-100 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : leads.length === 0 ? (
+            <div className="rounded-card bg-white shadow-card flex flex-col items-center justify-center py-16 text-center">
+              <Search className="h-10 w-10 text-gray-200 mb-3" />
+              <p className="font-medium text-gray-700">No leads found</p>
+              <p className="text-sm text-gray-400 mt-1">Try adjusting your filters or search query</p>
+            </div>
+          ) : view === 'grid' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {leads.map(l => <LeadCard key={l.id} lead={l} />)}
+            </div>
+          ) : (
+            <div className="rounded-card bg-white shadow-card overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="py-2.5 pl-4 pr-3 text-left text-xs font-medium text-gray-500">Lead</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-medium text-gray-500">Trade</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-medium text-gray-500">Value</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-medium text-gray-500">Score</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-medium text-gray-500">Type</th>
+                    <th className="py-2.5 pl-3 pr-4 text-left text-xs font-medium text-gray-500">Posted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map(l => <LeadTableRow key={l.id} lead={l} />)}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-        {/* Table view */}
-        {viewMode === 'table' && <LeadTable leads={leads} loading={loading} />}
-
-        {/* Pagination */}
-        {!loading && leads.length > 0 && (
-          <div className="mt-6 flex items-center justify-between">
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-              Prev
-            </button>
-
-            <span className="text-sm text-gray-500">{countText}</span>
-
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={!hasMore}
-              className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-            >
-              Next
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {!loading && leads.length === 0 && !error && (
-          <div className="text-center py-16 text-gray-400">
-            <div className="text-4xl mb-3">🔍</div>
-            <p className="font-medium text-gray-600">No leads match your filters</p>
-            <button onClick={handleReset} className="mt-3 text-sm text-primary-600 hover:underline">Clear filters</button>
-          </div>
-        )}
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total.toLocaleString()}
+              </p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setPage(p => p - 1)} disabled={page === 0}
+                  className="btn btn-secondary btn-sm flex items-center gap-1 disabled:opacity-40">
+                  <ChevronLeft className="h-4 w-4" /> Prev
+                </button>
+                <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}
+                  className="btn btn-secondary btn-sm flex items-center gap-1 disabled:opacity-40">
+                  Next <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  );
+  )
 }

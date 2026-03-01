@@ -22,6 +22,7 @@ export default function App() {
         <Route path="/contractors" element={<ContractorDirectory />} />
         <Route path="/contractors/:id" element={<ContractorProfile />} />
         <Route path="/markets" element={<MarketMaps />} />
+        <Route path="/maps" element={<MarketMaps />} />
         <Route path="/alerts" element={<Alerts />} />
       </Route>
     </Routes>

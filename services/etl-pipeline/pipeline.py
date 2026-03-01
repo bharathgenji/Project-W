@@ -80,7 +80,7 @@ async def process_batch(source_type: str, storage_path: str) -> dict[str, Any]:
                 _update_contractor_from_lead(lead, firestore)
 
         except Exception as e:
-            logger.warning("record_processing_error", error=str(e))
+            logger.warning(f"record_processing_error: {e}")
 
     logger.info(
         "batch_complete",
@@ -115,6 +115,8 @@ def _process_permit(record: dict[str, Any]) -> dict[str, Any] | None:
         "title": f"{normalized.get('permit_type', 'BUILDING')} - {description[:100]}",
         "value": normalized.get("estimated_cost"),
         "addr": addr_str,
+        "city": address.get("city", "").strip().title() or normalized.get("source_id", "").replace("-", " ").title(),
+        "state": address.get("state", "").strip().upper(),
         "geo_lat": address.get("lat"),
         "geo_lng": address.get("lng"),
         "owner": {

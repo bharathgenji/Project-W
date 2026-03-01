@@ -1,338 +1,145 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { ToastContainer } from './Toast';
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { clsx } from 'clsx'
+import {
+  LayoutDashboard, Zap, GitMerge, Map, Bell, Building2,
+  Menu, X, Search, Wifi, WifiOff,
+} from 'lucide-react'
+import toast, { Toaster } from 'react-hot-toast'
 
-const navItems = [
-  {
-    to: '/dashboard',
-    label: 'Dashboard',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-      </svg>
-    ),
-  },
-  {
-    to: '/leads',
-    label: 'Leads',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-      </svg>
-    ),
-  },
-  {
-    to: '/pipeline',
-    label: 'My Pipeline',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0H3" />
-      </svg>
-    ),
-  },
-  {
-    to: '/contractors',
-    label: 'Contractors',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-      </svg>
-    ),
-  },
-  {
-    to: '/markets',
-    label: 'Markets',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
-      </svg>
-    ),
-  },
-  {
-    to: '/alerts',
-    label: 'Alerts',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-      </svg>
-    ),
-  },
-];
+const NAV = [
+  { to: '/dashboard',   label: 'Dashboard',   Icon: LayoutDashboard },
+  { to: '/leads',       label: 'Leads',        Icon: Zap },
+  { to: '/pipeline',    label: 'Pipeline',     Icon: GitMerge },
+  { to: '/maps',        label: 'Market Map',   Icon: Map },
+  { to: '/alerts',      label: 'Alerts',       Icon: Bell },
+  { to: '/contractors', label: 'Contractors',  Icon: Building2 },
+]
 
-// ─── WebSocket hook ──────────────────────────────────────────────────────────
-
-function useLeadAlerts(onNewLead) {
-  const wsRef = useRef(null);
-  const reconnectTimer = useRef(null);
-
-  const connect = useCallback(() => {
-    const email = localStorage.getItem('pipeline_email');
-    if (!email) return;
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/api/ws/alerts?email=${encodeURIComponent(email)}`;
-
-    try {
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'new_lead') onNewLead(data.lead);
-        } catch { /* ignore parse errors */ }
-      };
-
-      ws.onclose = () => {
-        // Reconnect after 5 seconds
-        reconnectTimer.current = setTimeout(connect, 5000);
-      };
-
-      // Keep-alive ping every 30s
-      const pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) ws.send('ping');
-      }, 30000);
-
-      ws.onerror = () => clearInterval(pingInterval);
-    } catch { /* WebSocket not available */ }
-  }, [onNewLead]);
-
-  useEffect(() => {
-    connect();
-    // Re-connect if email changes (user logs in)
-    const onStorage = (e) => { if (e.key === 'pipeline_email') connect(); };
-    window.addEventListener('storage', onStorage);
-    return () => {
-      clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
-      window.removeEventListener('storage', onStorage);
-    };
-  }, [connect]);
+function NavItem({ to, label, Icon }) {
+  return (
+    <NavLink to={to}
+      className={({ isActive }) => clsx(
+        'flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors',
+        isActive
+          ? 'border-l-2 border-primary-700 bg-primary-50 text-primary-700 font-semibold pl-[10px]'
+          : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium'
+      )}>
+      <Icon className="h-4 w-4 shrink-0" />
+      {label}
+    </NavLink>
+  )
 }
 
-// ─── Layout component ────────────────────────────────────────────────────────
+function Sidebar({ open, onClose }) {
+  return (
+    <>
+      {open && <div className="fixed inset-0 z-20 bg-black/30 lg:hidden" onClick={onClose} />}
+      <aside className={clsx(
+        'fixed inset-y-0 left-0 z-30 flex w-56 flex-col border-r border-gray-200 bg-white pt-14 lg:static lg:translate-x-0 lg:inset-auto transition-transform duration-200',
+        open ? 'translate-x-0' : '-translate-x-full'
+      )}>
+        <button onClick={onClose} className="absolute right-3 top-3 p-1 text-gray-400 hover:text-gray-600 lg:hidden">
+          <X className="h-5 w-5" />
+        </button>
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+          {NAV.map(n => <NavItem key={n.to} {...n} />)}
+        </nav>
+        <div className="px-4 py-4 border-t border-gray-100">
+          <p className="text-xs text-gray-300">BuildScope v0.2</p>
+        </div>
+      </aside>
+    </>
+  )
+}
+
+function Navbar({ onMenuToggle, wsConnected }) {
+  const [q, setQ] = useState('')
+  return (
+    <header className="fixed inset-x-0 top-0 z-40 h-14 flex items-center gap-4 border-b border-gray-200 bg-white px-4 lg:px-6">
+      <button onClick={onMenuToggle} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded lg:hidden">
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Logo */}
+      <NavLink to="/dashboard" className="flex items-center gap-2 shrink-0 text-primary-700 font-bold text-[15px]">
+        <div className="flex h-7 w-7 items-center justify-center rounded bg-primary-700">
+          <Building2 className="h-4 w-4 text-white" />
+        </div>
+        BuildScope
+      </NavLink>
+
+      {/* Search */}
+      <div className="flex-1 max-w-xs hidden sm:block">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+          <input value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Search leads, contractors…"
+            className="input-base pl-8 py-1.5 text-sm" />
+        </div>
+      </div>
+
+      {/* Status */}
+      <div className="ml-auto flex items-center gap-3">
+        <span className={clsx('hidden sm:flex items-center gap-1.5 text-xs',
+          wsConnected ? 'text-emerald-600' : 'text-gray-400')}>
+          {wsConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+          {wsConnected ? 'Live' : 'Offline'}
+        </span>
+      </div>
+    </header>
+  )
+}
 
 export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [toasts, setToasts] = useState([]);
-  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [wsConnected, setWsConnected] = useState(false)
+  const wsRef = useRef(null)
+  const email = localStorage.getItem('pipeline_email') || ''
+  const location = useLocation()
 
-  const handleNewLead = useCallback((lead) => {
-    const id = `toast-${Date.now()}`;
-    setToasts((prev) => [...prev.slice(-4), {   // max 5 toasts
-      id,
-      message: lead.title?.slice(0, 80) || 'New matching lead found',
-      leadId: lead.id,
-    }]);
-  }, []);
+  useEffect(() => { setSidebarOpen(false) }, [location.pathname])
 
-  const dismissToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  useLeadAlerts(handleNewLead);
-
-  const pageTitle = (() => {
-    const path = location.pathname;
-    if (path.startsWith('/dashboard')) return 'Dashboard';
-    if (path.startsWith('/leads/')) return 'Lead Detail';
-    if (path.startsWith('/leads')) return 'Lead Browser';
-    if (path.startsWith('/pipeline')) return 'My Pipeline';
-    if (path.startsWith('/contractors/')) return 'Contractor Profile';
-    if (path.startsWith('/contractors')) return 'Contractor Directory';
-    if (path.startsWith('/markets')) return 'Market Maps';
-    if (path.startsWith('/alerts')) return 'Alerts';
-    return 'BuildScope';
-  })();
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="fixed inset-0 bg-gray-600/75" onClick={() => setSidebarOpen(false)} />
-          <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-primary-900">
-            <div className="flex h-16 items-center justify-between px-6">
-              <span className="text-xl font-bold text-white">BuildScope</span>
-              <button onClick={() => setSidebarOpen(false)} className="text-primary-200 hover:text-white">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <SidebarNav onClick={() => setSidebarOpen(false)} />
-          </div>
-        </div>
-      )}
-
-      {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex min-h-0 flex-1 flex-col bg-primary-900">
-          <div className="flex h-16 items-center px-6 border-b border-primary-800">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-600">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold text-white tracking-tight">BuildScope</span>
-            </div>
-          </div>
-          <SidebarNav />
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b border-gray-200 bg-white px-4 sm:px-6 lg:px-8 shadow-sm">
-          <button className="lg:hidden -m-2.5 p-2.5 text-gray-700" onClick={() => setSidebarOpen(true)}>
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
-          </button>
-          <div className="flex flex-1 items-center justify-between">
-            <h1 className="text-lg font-semibold text-gray-900">{pageTitle}</h1>
-            <div className="flex items-center gap-3">
-              <div className="hidden sm:block relative"><SearchBox /></div>
-              <WsIndicator />
-            </div>
-          </div>
-        </div>
-
-        <main className="p-4 sm:p-6 lg:p-8"><Outlet /></main>
-      </div>
-
-      {/* Toast notifications */}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-    </div>
-  );
-}
-
-// ─── WebSocket status indicator ──────────────────────────────────────────────
-
-function WsIndicator() {
-  const email = localStorage.getItem('pipeline_email');
-  if (!email) return null;
-  return (
-    <div className="flex items-center gap-1.5" title="Real-time alerts connected">
-      <span className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-      </span>
-      <span className="text-xs text-gray-400 hidden sm:inline">Live</span>
-    </div>
-  );
-}
-
-// ─── Sidebar nav ─────────────────────────────────────────────────────────────
-
-function SidebarNav({ onClick }) {
-  return (
-    <nav className="flex flex-1 flex-col px-4 py-4 space-y-1">
-      {navItems.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          onClick={onClick}
-          className={({ isActive }) =>
-            `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${
-              isActive ? 'bg-primary-800 text-white' : 'text-primary-200 hover:bg-primary-800/50 hover:text-white'
-            }`
-          }
-        >
-          {item.icon}
-          {item.label}
-        </NavLink>
-      ))}
-      <div className="flex-1" />
-      <div className="border-t border-primary-800 pt-4 mt-4">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-700 text-primary-200 text-xs font-medium">
-            BS
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">BuildScope</p>
-            <p className="text-xs text-primary-300 truncate">Construction Intelligence</p>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-// ─── Search box ──────────────────────────────────────────────────────────────
-
-function SearchBox() {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState(null);
-  const [open, setOpen] = useState(false);
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!query.trim() || query.trim().length < 2) return;
+  const connectWs = useCallback(() => {
+    if (!email) return
     try {
-      const { searchLeads } = await import('../api/client.js');
-      const data = await searchLeads(query.trim());
-      setResults(data);
-      setOpen(true);
-    } catch {
-      setResults({ leads: [], contractors: [] });
-      setOpen(true);
-    }
-  };
+      const ws = new WebSocket(`ws://${window.location.host}/api/ws/alerts?email=${encodeURIComponent(email)}`)
+      ws.onopen = () => setWsConnected(true)
+      ws.onclose = () => { setWsConnected(false); setTimeout(connectWs, 5000) }
+      ws.onerror = () => ws.close()
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data)
+          if (data.type === 'new_lead') {
+            toast.custom((t) => (
+              <div className={clsx('flex items-start gap-3 bg-white rounded-lg px-4 py-3 shadow-card-hover border border-gray-100', t.visible ? 'opacity-100' : 'opacity-0')}>
+                <Zap className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">New lead matched</p>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">{data.lead?.title?.slice(0, 60)}</p>
+                </div>
+              </div>
+            ), { duration: 5000 })
+          }
+        } catch {}
+      }
+      wsRef.current = ws
+    } catch {}
+  }, [email])
+
+  useEffect(() => { connectWs(); return () => wsRef.current?.close() }, [connectWs])
 
   return (
-    <div className="relative">
-      <form onSubmit={handleSearch}>
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search leads & contractors..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => results && setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 200)}
-            className="w-64 rounded-lg border-0 bg-gray-100 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-2 focus:ring-primary-500 transition-all"
-          />
-        </div>
-      </form>
-      {open && results && (
-        <div className="absolute right-0 top-full mt-2 w-80 rounded-lg bg-white shadow-lg ring-1 ring-gray-200 overflow-hidden z-50">
-          {results.leads?.length > 0 && (
-            <div>
-              <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Leads ({results.leads.length})
-              </div>
-              {results.leads.slice(0, 5).map((lead) => (
-                <a key={lead.id} href={`/leads/${lead.id}`} className="block px-4 py-2 hover:bg-primary-50 text-sm text-gray-700 border-b border-gray-100">
-                  <span className="font-medium line-clamp-1">{lead.title || 'Untitled'}</span>
-                  <span className="block text-xs text-gray-400">{lead.trade} · {lead.addr}</span>
-                </a>
-              ))}
-            </div>
-          )}
-          {results.contractors?.length > 0 && (
-            <div>
-              <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Contractors ({results.contractors.length})
-              </div>
-              {results.contractors.slice(0, 5).map((c) => (
-                <a key={c.id} href={`/contractors/${c.id}`} className="block px-4 py-2 hover:bg-primary-50 text-sm text-gray-700 border-b border-gray-100">
-                  <span className="font-medium">{c.name}</span>
-                  <span className="block text-xs text-gray-400">{c.trades?.join(', ')}</span>
-                </a>
-              ))}
-            </div>
-          )}
-          {!results.leads?.length && !results.contractors?.length && (
-            <div className="px-4 py-6 text-center text-sm text-gray-500">No results for "{query}"</div>
-          )}
-        </div>
-      )}
+    <div className="flex h-screen flex-col bg-background">
+      <Navbar onMenuToggle={() => setSidebarOpen(o => !o)} wsConnected={wsConnected} />
+      <div className="flex flex-1 overflow-hidden pt-14">
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main className="flex-1 overflow-y-auto p-5 lg:p-7">
+          <Outlet />
+        </main>
+      </div>
+      <Toaster position="bottom-right"
+        toastOptions={{ className: 'text-sm font-medium', style: { fontFamily: 'Inter, system-ui, sans-serif', borderRadius: '8px', fontSize: '13px' } }} />
     </div>
-  );
+  )
 }

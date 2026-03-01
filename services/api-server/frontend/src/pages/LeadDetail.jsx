@@ -1,387 +1,352 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getLead, getLeads } from '../api/client';
-import LeadCard from '../components/LeadCard';
+import { useEffect, useState } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { clsx } from 'clsx'
+import { format, formatDistanceToNow } from 'date-fns'
+import {
+  ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, ChevronRight,
+  Heart, Bell, ExternalLink, Building2, User, Zap, CheckCircle2, Tag,
+} from 'lucide-react'
+import { getLead, getLeads } from '../api/client'
+import LeadCard from '../components/LeadCard'
+import toast from 'react-hot-toast'
 
-const TRADE_COLORS = {
-  ELECTRICAL:'#f59e0b', PLUMBING:'#3b82f6', HVAC:'#06b6d4',
-  ROOFING:'#f97316', CONCRETE:'#6b7280', GENERAL:'#8b5cf6', DEFAULT:'#1d4ed8',
-};
-const TRADE_EMOJI = { ELECTRICAL:'⚡', PLUMBING:'🔧', HVAC:'❄️', ROOFING:'🏠', CONCRETE:'🏗️', GENERAL:'🔨', DEFAULT:'📋' };
-
-function fmt(v) {
-  if (!v && v !== 0) return '--';
-  if (v >= 1e6) return `$${(v/1e6).toFixed(1)}M`;
-  if (v >= 1e3) return `$${Math.round(v/1e3)}K`;
-  return `$${Number(v).toLocaleString()}`;
+function fmtVal(v) {
+  if (!v && v !== 0) return '—'
+  if (v >= 1e6) return `$${(v/1e6).toFixed(1)}M`
+  if (v >= 1e3) return `$${Math.round(v/1e3)}K`
+  return `$${Number(v).toLocaleString()}`
 }
 function fmtDate(s) {
-  if (!s) return '--';
-  try { return new Date(s).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' }); }
-  catch { return s; }
+  if (!s) return '—'
+  try { return format(new Date(s), 'MMM d, yyyy') } catch { return s }
 }
 function relDate(s) {
-  if (!s) return null;
-  const days = Math.floor((Date.now() - new Date(s).getTime()) / 86400000);
-  if (days === 0) return 'Today'; if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`; if (days < 30) return `${Math.floor(days/7)} weeks ago`;
-  return `${Math.floor(days/30)} months ago`;
+  if (!s) return null
+  try { return formatDistanceToNow(new Date(s), { addSuffix: true }) } catch { return null }
 }
 
-function ScoreRing({ score }) {
-  const color = score >= 80 ? '#10b981' : score >= 60 ? '#3b82f6' : score >= 40 ? '#f59e0b' : '#9ca3af';
-  const label = score >= 80 ? 'Hot 🔥' : score >= 60 ? 'Warm' : score >= 40 ? 'Fair' : 'Low';
-  const r = 30, circ = 2 * Math.PI * r, dash = (score / 100) * circ;
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width="80" height="80" viewBox="0 0 80 80">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="#f3f4f6" strokeWidth="8"/>
-        <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="8"
-          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
-          transform="rotate(-90 40 40)" style={{transition:'stroke-dasharray 1s ease'}}/>
-        <text x="40" y="44" textAnchor="middle" fontSize="18" fontWeight="700" fill={color}>{score}</text>
-      </svg>
-      <span className="text-xs font-semibold" style={{color}}>{label}</span>
-    </div>
-  );
+const TRADE_BADGE = {
+  ELECTRICAL:'bg-amber-100 text-amber-700', PLUMBING:'bg-blue-100 text-blue-700',
+  HVAC:'bg-cyan-100 text-cyan-700', ROOFING:'bg-orange-100 text-orange-700',
+  CONCRETE:'bg-gray-100 text-gray-700', GENERAL:'bg-violet-100 text-violet-700',
 }
 
-// ── AI Enrichment Panel ──────────────────────────────────────────────────────
-const PROJECT_TYPE_LABELS = {
-  new_build: { label: 'New Construction', color: 'bg-emerald-100 text-emerald-800', icon: '🏗️' },
-  renovation: { label: 'Renovation', color: 'bg-blue-100 text-blue-800', icon: '🔨' },
-  repair: { label: 'Repair', color: 'bg-amber-100 text-amber-800', icon: '🔧' },
-  addition: { label: 'Addition', color: 'bg-purple-100 text-purple-800', icon: '➕' },
-  compliance: { label: 'Compliance', color: 'bg-gray-100 text-gray-800', icon: '📋' },
-};
-const OWNER_TYPE_LABELS = {
-  residential: { label: 'Residential', color: 'bg-sky-100 text-sky-800', icon: '🏘️' },
-  small_commercial: { label: 'Small Commercial', color: 'bg-indigo-100 text-indigo-800', icon: '🏪' },
-  large_commercial: { label: 'Large Commercial', color: 'bg-violet-100 text-violet-800', icon: '🏢' },
-  institutional: { label: 'Institutional / Gov', color: 'bg-rose-100 text-rose-800', icon: '🏛️' },
-  industrial: { label: 'Industrial', color: 'bg-orange-100 text-orange-800', icon: '🏭' },
-};
-
-function AIEnrichmentPanel({ ai }) {
-  if (!ai) return null;
-  const pt = PROJECT_TYPE_LABELS[ai.project_type] || { label: ai.project_type, color: 'bg-gray-100 text-gray-700', icon: '📋' };
-  const ot = OWNER_TYPE_LABELS[ai.owner_type] || { label: ai.owner_type, color: 'bg-gray-100 text-gray-700', icon: '👤' };
+// ── Section wrapper ───────────────────────────────────────────────────────────
+function Section({ title, icon: Icon, children }) {
   return (
-    <div className="card p-5 border-purple-200 bg-gradient-to-br from-white to-purple-50">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-6 h-6 rounded-md bg-purple-600 flex items-center justify-center">
-          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-          </svg>
-        </div>
-        <h3 className="text-sm font-semibold text-gray-900">AI Analysis</h3>
-        <span className="ml-auto text-[10px] font-medium text-purple-600 bg-purple-100 rounded-full px-2 py-0.5">Powered by Claude</span>
+    <div className="rounded-card bg-white shadow-card overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-3.5">
+        {Icon && <Icon className="h-4 w-4 text-gray-400" />}
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
       </div>
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="p-5">{children}</div>
+    </div>
+  )
+}
+
+// ── Detail row ────────────────────────────────────────────────────────────────
+function DetailRow({ label, value, accent }) {
+  if (!value) return null
+  return (
+    <div className="flex items-start justify-between gap-4 py-2 border-b border-gray-50 last:border-0">
+      <span className="text-xs text-gray-400 shrink-0 w-28">{label}</span>
+      <span className={clsx('text-sm text-right', accent ? 'font-semibold text-gray-900' : 'text-gray-700')}>{value}</span>
+    </div>
+  )
+}
+
+// ── Score ring (SVG) ──────────────────────────────────────────────────────────
+function ScoreGauge({ score }) {
+  const color = score >= 80 ? '#10b981' : score >= 60 ? '#3b82f6' : score >= 40 ? '#f59e0b' : '#9ca3af'
+  const label = score >= 80 ? 'Hot' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Low'
+  const r = 26; const circ = 2 * Math.PI * r; const dash = (score / 100) * circ
+  return (
+    <div className="flex flex-col items-center">
+      <svg width="72" height="72" viewBox="0 0 72 72">
+        <circle cx="36" cy="36" r={r} fill="none" stroke="#f3f4f6" strokeWidth="7" />
+        <circle cx="36" cy="36" r={r} fill="none" stroke={color} strokeWidth="7"
+          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+          transform="rotate(-90 36 36)" />
+        <text x="36" y="40" textAnchor="middle" fontSize="15" fontWeight="700" fill={color}>{score}</text>
+      </svg>
+      <span className="text-xs font-semibold mt-0.5" style={{ color }}>{label}</span>
+    </div>
+  )
+}
+
+// ── AI panel ──────────────────────────────────────────────────────────────────
+const PT_LABEL = { new_build:'New Construction', renovation:'Renovation', repair:'Repair', addition:'Addition', compliance:'Compliance' }
+const OT_LABEL = { residential:'Residential', small_commercial:'Small Commercial', large_commercial:'Large Commercial', institutional:'Institutional' }
+
+function AIPanel({ ai }) {
+  if (!ai) return null
+  return (
+    <Section title="AI Analysis" icon={Zap}>
+      <div className="grid grid-cols-2 gap-4">
         <div>
-          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Project Type</p>
-          <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${pt.color}`}>
-            {pt.icon} {pt.label}
+          <p className="text-xs text-gray-400 mb-1">Project Type</p>
+          <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700">
+            {PT_LABEL[ai.project_type] || ai.project_type}
           </span>
         </div>
         <div>
-          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Owner Type</p>
-          <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${ot.color}`}>
-            {ot.icon} {ot.label}
+          <p className="text-xs text-gray-400 mb-1">Owner Type</p>
+          <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-700">
+            {OT_LABEL[ai.owner_type] || ai.owner_type}
           </span>
         </div>
-        {ai.sqft && (
-          <div>
-            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Square Footage</p>
-            <p className="text-sm font-bold text-gray-900">{ai.sqft.toLocaleString()} sqft</p>
-          </div>
-        )}
-        {ai.units && (
-          <div>
-            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Units</p>
-            <p className="text-sm font-bold text-gray-900">{ai.units} units</p>
-          </div>
-        )}
+        {ai.sqft && <div><p className="text-xs text-gray-400 mb-0.5">Sq Ft</p><p className="text-sm font-semibold text-gray-900">{ai.sqft.toLocaleString()}</p></div>}
+        {ai.units && <div><p className="text-xs text-gray-400 mb-0.5">Units</p><p className="text-sm font-semibold text-gray-900">{ai.units}</p></div>}
       </div>
       {ai.key_materials?.length > 0 && (
-        <div>
-          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">Key Materials</p>
+        <div className="mt-4">
+          <p className="text-xs text-gray-400 mb-2">Key Materials</p>
           <div className="flex flex-wrap gap-1.5">
             {ai.key_materials.map((m, i) => (
-              <span key={i} className="rounded-md bg-white border border-gray-200 px-2 py-0.5 text-xs text-gray-700 shadow-sm">{m}</span>
+              <span key={i} className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-600">{m}</span>
             ))}
           </div>
         </div>
       )}
-      {(ai.urgency || ai.complexity) && (
-        <div className="mt-3 pt-3 border-t border-purple-100 flex gap-4">
-          {ai.urgency && <div className="text-xs"><span className="text-gray-400">Urgency: </span>
-            <span className={`font-semibold ${ai.urgency === 'high' ? 'text-red-600' : ai.urgency === 'medium' ? 'text-amber-600' : 'text-gray-600'}`}>{ai.urgency}</span></div>}
-          {ai.complexity && <div className="text-xs"><span className="text-gray-400">Complexity: </span>
-            <span className="font-semibold text-gray-700">{ai.complexity}</span></div>}
-        </div>
-      )}
-    </div>
-  );
+    </Section>
+  )
 }
 
-// ── Contact Card ──────────────────────────────────────────────────────────────
-function ContactCard({ title, icon, name, phone, email, license, children }) {
-  if (!name && !children) return (
-    <div className="card p-5">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">{icon} {title}</h3>
+// ── Contact card ──────────────────────────────────────────────────────────────
+function ContactCard({ title, icon: Icon, name, phone, email, license }) {
+  if (!name && !phone && !email) return (
+    <div className="rounded-card bg-white shadow-card p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className="h-4 w-4 text-gray-400" /><p className="text-sm font-semibold text-gray-900">{title}</p>
+      </div>
       <p className="text-sm text-gray-400">No information available</p>
     </div>
-  );
+  )
   return (
-    <div className="card p-5">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">{icon} {title}</h3>
-      {children || (
-        <div className="space-y-2">
-          {name && <p className="font-semibold text-gray-900">{name}</p>}
-          {phone && (
-            <a href={`tel:${phone}`} className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-800 font-medium group">
-              <span className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center group-hover:bg-primary-100 transition-colors">📞</span>
-              {phone}
-            </a>
-          )}
-          {email && (
-            <a href={`mailto:${email}`} className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-800 font-medium group">
-              <span className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center group-hover:bg-primary-100 transition-colors">✉️</span>
-              {email}
-            </a>
-          )}
-          {license && <p className="text-xs text-gray-500 mt-1">🪪 License: {license}</p>}
-        </div>
-      )}
+    <div className="rounded-card bg-white shadow-card p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className="h-4 w-4 text-gray-400" /><p className="text-sm font-semibold text-gray-900">{title}</p>
+      </div>
+      <div className="space-y-2">
+        {name && <p className="text-sm font-medium text-gray-900">{name}</p>}
+        {phone && (
+          <a href={`tel:${phone}`} className="flex items-center gap-2 text-sm text-secondary hover:text-primary-700">
+            <Phone className="h-3.5 w-3.5" />{phone}
+          </a>
+        )}
+        {email && (
+          <a href={`mailto:${email}`} className="flex items-center gap-2 text-sm text-secondary hover:text-primary-700 truncate">
+            <Mail className="h-3.5 w-3.5 shrink-0" />{email}
+          </a>
+        )}
+        {license && <p className="flex items-center gap-1.5 text-xs text-gray-400"><CheckCircle2 className="h-3 w-3" />Lic: {license}</p>}
+      </div>
     </div>
-  );
+  )
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function LeadDetail() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [lead, setLead] = useState(null);
-  const [similarLeads, setSimilarLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [saved, setSaved] = useState(false);
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [lead, setLead] = useState(null)
+  const [similar, setSimilar] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true); setError(null);
-      try {
-        const data = await getLead(id);
-        if (data.error) { setError(data.error); return; }
-        setLead(data);
-        if (data.trade) {
-          const env = await getLeads({ trade: data.trade, limit: 6 }).catch(() => ({ data: [] }));
-          const list = Array.isArray(env) ? env : (env.data || []);
-          setSimilarLeads(list.filter(l => l.id !== id).slice(0, 3));
-        }
-      } catch (err) { setError(err.message); }
-      finally { setLoading(false); }
-    }
-    fetchData();
-  }, [id]);
+    setLoading(true); setError(null)
+    getLead(id).then(data => {
+      if (data.error) { setError(data.error); return }
+      setLead(data)
+      if (data.trade) {
+        getLeads({ trade: data.trade, limit: 4 }).catch(() => ({ data: [] })).then(env => {
+          const list = Array.isArray(env) ? env : (env.data || [])
+          setSimilar(list.filter(l => l.id !== id).slice(0, 3))
+        })
+      }
+    }).catch(e => setError(e.message)).finally(() => setLoading(false))
+  }, [id])
 
   const handleSave = async () => {
-    let email = localStorage.getItem('pipeline_email');
+    let email = localStorage.getItem('pipeline_email')
     if (!email) {
-      email = window.prompt('Enter your email to save this lead:');
-      if (!email) return;
-      localStorage.setItem('pipeline_email', email.trim());
+      email = window.prompt('Enter your email to save this lead:')
+      if (!email) return
+      localStorage.setItem('pipeline_email', email.trim())
     }
     const res = await fetch(`/api/pipeline/leads/${id}/save`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_email: email }),
-    });
-    if (res.ok) setSaved(true);
-  };
+    })
+    if (res.ok) { setSaved(true); toast.success('Saved to pipeline') }
+  }
 
   if (loading) return (
-    <div className="animate-pulse space-y-6">
-      <div className="h-6 w-48 bg-gray-200 rounded"/>
-      <div className="card p-6 space-y-4"><div className="h-7 w-2/3 bg-gray-200 rounded"/><div className="h-4 w-1/2 bg-gray-200 rounded"/></div>
-      <div className="grid grid-cols-3 gap-6"><div className="col-span-2 h-64 bg-gray-200 rounded-xl"/><div className="h-64 bg-gray-200 rounded-xl"/></div>
-    </div>
-  );
-
-  if (error || !lead) return (
-    <div className="text-center py-16">
-      <div className="text-5xl mb-4">🔍</div>
-      <h3 className="text-lg font-semibold text-gray-900">{error === 'Lead not found' ? 'Lead Not Found' : 'Error'}</h3>
-      <p className="text-gray-500 mt-1">{error}</p>
-      <div className="mt-5 flex justify-center gap-3">
-        <button onClick={() => navigate(-1)} className="btn-secondary">← Back</button>
-        <Link to="/leads" className="btn-primary">Browse Leads</Link>
+    <div className="space-y-5 animate-pulse">
+      <div className="h-5 w-32 bg-gray-100 rounded" />
+      <div className="rounded-card bg-white shadow-card p-6 space-y-3">
+        <div className="h-6 w-2/3 bg-gray-100 rounded" />
+        <div className="h-4 w-1/2 bg-gray-100 rounded" />
+        <div className="h-8 w-24 bg-gray-100 rounded" />
+      </div>
+      <div className="grid grid-cols-3 gap-5">
+        <div className="col-span-2 h-48 rounded-card bg-gray-100" />
+        <div className="h-48 rounded-card bg-gray-100" />
       </div>
     </div>
-  );
+  )
 
-  const score = lead.score || 0;
-  const gc = lead.gc || {};
-  const owner = lead.owner || {};
-  const ai = lead.ai;
-  const tradeColor = TRADE_COLORS[lead.trade] || TRADE_COLORS.DEFAULT;
+  if (error || !lead) return (
+    <div className="flex flex-col items-center py-16">
+      <p className="font-semibold text-gray-700 mb-1">{error === 'Lead not found' ? 'Lead not found' : 'Error loading lead'}</p>
+      <p className="text-sm text-gray-400 mb-5">{error}</p>
+      <div className="flex gap-3">
+        <button onClick={() => navigate(-1)} className="btn btn-secondary">Go back</button>
+        <Link to="/leads" className="btn btn-primary">Browse leads</Link>
+      </div>
+    </div>
+  )
+
+  const owner = lead.owner || {}
+  const gc = lead.gc || {}
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-5 max-w-5xl">
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-gray-500">
-        <Link to="/leads" className="hover:text-gray-700">Leads</Link>
-        <span>›</span>
-        <span className="text-gray-900 font-medium truncate max-w-sm">{lead.trade} · {lead.type}</span>
-      </nav>
+      <Link to="/leads" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
+        <ArrowLeft className="h-4 w-4" /> Back to Leads
+      </Link>
 
-      {/* Hero header */}
-      <div className="card p-6 overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-5" style={{background: tradeColor, transform: 'translate(30%, -30%)'}}/>
-        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+      {/* Hero */}
+      <div className="rounded-card bg-white shadow-card p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-5">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-semibold"
-                style={{background: tradeColor + '18', color: tradeColor}}>
-                {TRADE_EMOJI[lead.trade]||'📋'} {lead.trade}
+              <span className={clsx('inline-flex items-center rounded px-2 py-0.5 text-xs font-medium', TRADE_BADGE[lead.trade] ?? 'bg-gray-100 text-gray-600')}>
+                {lead.trade}
               </span>
-              <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-600 capitalize">{lead.type}</span>
+              <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 capitalize">
+                {lead.type || 'permit'}
+              </span>
               {lead.deadline && (
-                <span className="rounded-lg bg-red-50 border border-red-200 px-2.5 py-1 text-sm font-medium text-red-700">
-                  ⏰ Due {relDate(lead.deadline)}
+                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium bg-red-50 text-red-600 border border-red-100">
+                  <Calendar className="h-3 w-3" /> Due {relDate(lead.deadline)}
                 </span>
               )}
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug">{lead.title}</h1>
-            <div className="mt-3 flex items-center gap-4 flex-wrap text-sm text-gray-500">
-              <span>📍 {lead.addr || '--'}</span>
-              <span>🕐 {relDate(lead.posted)} · {fmtDate(lead.posted)}</span>
+            <h1 className="text-lg font-bold text-gray-900 leading-snug">{lead.title}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-400">
+              {lead.addr && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{lead.addr}</span>}
+              {lead.posted && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{relDate(lead.posted)} · {fmtDate(lead.posted)}</span>}
             </div>
           </div>
-          <div className="flex items-center gap-4 flex-shrink-0">
-            <ScoreRing score={score} />
+          <div className="flex items-center gap-5 shrink-0">
+            <ScoreGauge score={lead.score || 0} />
             <div className="text-right">
-              <p className="text-3xl font-black text-gray-900">{fmt(lead.value)}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Est. Project Value</p>
+              <p className="text-2xl font-black text-gray-900">{fmtVal(lead.value)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Est. project value</p>
             </div>
           </div>
         </div>
-        {/* Action buttons */}
-        <div className="mt-5 flex flex-wrap gap-2 pt-5 border-t border-gray-100">
+
+        {/* Actions */}
+        <div className="mt-5 flex flex-wrap gap-2 pt-4 border-t border-gray-100">
           <button onClick={handleSave} disabled={saved}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${saved ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'btn-primary'}`}>
-            {saved ? '❤️ Saved to Pipeline' : '🤍 Save to Pipeline'}
+            className={clsx('btn btn-sm flex items-center gap-1.5', saved ? 'btn-secondary text-rose-500 border-rose-200' : 'btn-primary')}>
+            <Heart className={clsx('h-3.5 w-3.5', saved && 'fill-rose-500')} />
+            {saved ? 'Saved' : 'Save to Pipeline'}
           </button>
           {(owner.p || gc.p) && (
-            <a href={`tel:${owner.p || gc.p}`} className="flex items-center gap-2 btn-secondary text-sm">
-              📞 Call Now
+            <a href={`tel:${owner.p || gc.p}`} className="btn btn-secondary btn-sm flex items-center gap-1.5">
+              <Phone className="h-3.5 w-3.5" /> Call
             </a>
           )}
           {(owner.e || gc.e) && (
-            <a href={`mailto:${owner.e || gc.e}`} className="flex items-center gap-2 btn-secondary text-sm">
-              ✉️ Email
+            <a href={`mailto:${owner.e || gc.e}`} className="btn btn-secondary btn-sm flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" /> Email
             </a>
           )}
-          <Link to={`/alerts?trade=${lead.trade}&state=${(lead.addr||'').split(',').slice(-2,-1)[0]?.trim()||''}`}
-            className="flex items-center gap-2 btn-secondary text-sm">
-            🔔 Set Alert for Similar
+          <Link to={`/alerts?trade=${lead.trade}`} className="btn btn-secondary btn-sm flex items-center gap-1.5">
+            <Bell className="h-3.5 w-3.5" /> Alert for similar
           </Link>
         </div>
       </div>
 
-      {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Details + Similar */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* AI Enrichment */}
-          {ai && <AIEnrichmentPanel ai={ai} />}
+      {/* 2-col layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Left — main content */}
+        <div className="lg:col-span-2 space-y-4">
+          {lead.ai && <AIPanel ai={lead.ai} />}
 
-          {/* Project details */}
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">📄 Project Details</h2>
-            <dl className="grid grid-cols-2 gap-4">
-              <div>
-                <dt className="text-xs text-gray-400 uppercase tracking-wider mb-1">Type</dt>
-                <dd className="text-sm font-semibold text-gray-900 capitalize">{lead.type || '--'}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-gray-400 uppercase tracking-wider mb-1">Source</dt>
-                <dd className="text-sm font-semibold text-gray-900">{lead.src || '--'}</dd>
-              </div>
-              {lead.deadline && (
-                <div className="col-span-2">
-                  <dt className="text-xs text-gray-400 uppercase tracking-wider mb-1">Submission Deadline</dt>
-                  <dd className="text-sm font-bold text-red-600">{fmtDate(lead.deadline)} ({relDate(lead.deadline)})</dd>
+          <Section title="Project Details" icon={Building2}>
+            <DetailRow label="Source" value={lead.src} />
+            <DetailRow label="Status" value={lead.status} />
+            <DetailRow label="Permit Type" value={lead.permit_type} />
+            <DetailRow label="Work Class" value={lead.work_class} />
+            <DetailRow label="Posted" value={fmtDate(lead.posted)} />
+            <DetailRow label="Deadline" value={lead.deadline ? `${fmtDate(lead.deadline)} (${relDate(lead.deadline)})` : null} accent />
+            {lead.keywords?.length > 0 && (
+              <div className="pt-3">
+                <p className="text-xs text-gray-400 mb-2 flex items-center gap-1"><Tag className="h-3 w-3" />Keywords</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {lead.keywords.slice(0, 14).map(k => (
+                    <span key={k} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-0.5 text-xs text-gray-500">{k}</span>
+                  ))}
                 </div>
-              )}
-              {lead.keywords?.length > 0 && (
-                <div className="col-span-2">
-                  <dt className="text-xs text-gray-400 uppercase tracking-wider mb-2">Keywords</dt>
-                  <dd className="flex flex-wrap gap-1.5">
-                    {lead.keywords.slice(0, 12).map(k => (
-                      <span key={k} className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{k}</span>
-                    ))}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </div>
+              </div>
+            )}
+          </Section>
 
-          {/* Similar Leads */}
-          {similarLeads.length > 0 && (
+          {similar.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-gray-900">Similar {lead.trade} Leads</h2>
-                <Link to={`/leads?trade=${lead.trade}`} className="text-xs text-primary-600 hover:underline">View all →</Link>
+                <Link to={`/leads?trade=${lead.trade}`} className="text-xs text-secondary hover:underline flex items-center gap-0.5">
+                  View all <ChevronRight className="h-3 w-3" />
+                </Link>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {similarLeads.map(sl => <LeadCard key={sl.id} lead={sl} compact />)}
+                {similar.map(sl => <LeadCard key={sl.id} lead={sl} compact />)}
               </div>
             </div>
           )}
         </div>
 
-        {/* Right: Contacts + Score */}
+        {/* Right — contacts + score */}
         <div className="space-y-4">
-          {/* Owner */}
-          <ContactCard title="Property Owner" icon="👤" name={owner.n} phone={owner.p} email={owner.e} />
+          <ContactCard title="Property Owner" icon={User} name={owner.n} phone={owner.p} email={owner.e} />
+          <ContactCard title="General Contractor" icon={Building2} name={gc.n} phone={gc.p} email={gc.e} license={gc.lic} />
 
-          {/* GC */}
-          <ContactCard title="General Contractor" icon="🏗️" name={gc.n} phone={gc.p} email={gc.e} license={gc.lic} />
-
-          {/* Score breakdown */}
-          <div className="card p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">📊 Score Breakdown</h3>
+          <Section title="Score Breakdown" icon={Zap}>
             {[
-              { label: 'Value Signal', val: Math.min(score >= 80 ? 25 : Math.round(score * 0.28), 25), max: 25 },
-              { label: 'Recency', val: Math.min(score >= 80 ? 25 : Math.round(score * 0.27), 25), max: 25 },
-              { label: 'Contact Quality', val: Math.min(score >= 80 ? 30 : Math.round(score * 0.30), 30), max: 30 },
-              { label: 'Market Fit', val: Math.min(score >= 80 ? 20 : Math.round(score * 0.15), 20), max: 20 },
-            ].map(({ label, val, max }) => (
-              <div key={label} className="mb-3">
+              { label: 'Value Signal', score: Math.min(Math.round((lead.score || 0) * 0.28), 25), max: 25 },
+              { label: 'Recency', score: Math.min(Math.round((lead.score || 0) * 0.27), 25), max: 25 },
+              { label: 'Contact Quality', score: Math.min(Math.round((lead.score || 0) * 0.30), 30), max: 30 },
+              { label: 'Market Fit', score: Math.min(Math.round((lead.score || 0) * 0.15), 20), max: 20 },
+            ].map(({ label, score, max }) => (
+              <div key={label} className="mb-2.5">
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-600">{label}</span>
-                  <span className="font-semibold text-gray-800">{val}/{max}</span>
+                  <span className="text-gray-500">{label}</span>
+                  <span className="font-medium text-gray-700">{score}/{max}</span>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full bg-primary-500 transition-all" style={{width:`${(val/max)*100}%`}}/>
+                <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-primary-500" style={{ width: `${(score/max)*100}%` }} />
                 </div>
               </div>
             ))}
-          </div>
+          </Section>
 
-          {/* Source metadata */}
-          <div className="card p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">🔗 Data Source</h3>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-gray-500">Source ID</span><span className="font-mono text-xs text-gray-700">{lead.src || '--'}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Lead ID</span><span className="font-mono text-xs text-gray-400 truncate ml-2">{lead.id?.slice(0,12)}…</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Posted</span><span className="text-gray-700">{relDate(lead.posted)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Updated</span><span className="text-gray-700">{relDate(lead.updated)}</span></div>
+          <div className="rounded-card bg-white shadow-card p-4">
+            <p className="text-xs text-gray-400 mb-2">Data Source</p>
+            <div className="space-y-1 text-xs text-gray-500">
+              <div className="flex justify-between"><span>Source ID</span><code className="text-gray-400">{lead.src || '—'}</code></div>
+              <div className="flex justify-between"><span>Lead ID</span><code className="text-gray-400">{lead.id?.slice(0,12)}…</code></div>
             </div>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

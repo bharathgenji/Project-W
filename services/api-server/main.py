@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -79,6 +82,114 @@ async def run_alerts() -> dict:
     """Trigger email alert delivery job (call from Cloud Scheduler or cron)."""
     db = get_firestore()
     return await run_alert_delivery(db)
+
+
+# ── Ingest state (in-memory, persisted to Firestore _meta doc) ────────────────
+_ingest_running = False
+_REPO_ROOT = Path(__file__).parent.parent.parent
+
+
+def _read_ingest_status(db: Any) -> dict:
+    try:
+        doc = db.db.collection("_meta").document("ingest_status").get()
+        return doc.to_dict() if doc.exists else {}
+    except Exception:
+        return {}
+
+
+def _write_ingest_status(db: Any, status: dict) -> None:
+    try:
+        db.db.collection("_meta").document("ingest_status").set(status)
+    except Exception:
+        pass
+
+
+@app.get("/api/ingest/status")
+def ingest_status() -> dict:
+    """Return last ingestion run metadata."""
+    db = get_firestore()
+    meta = _read_ingest_status(db)
+    return {
+        "running": _ingest_running,
+        "last_run": meta.get("last_run"),
+        "last_run_leads": meta.get("leads_stored", 0),
+        "last_run_contractors": meta.get("contractors_updated", 0),
+        "last_run_sources": meta.get("sources", []),
+        "success": meta.get("success"),
+        "error": meta.get("error"),
+    }
+
+
+@app.post("/api/ingest/run")
+async def run_ingest(days: int = 30, max_per_portal: int = 500) -> dict:
+    """Trigger a full live data ingestion in the background."""
+    global _ingest_running
+    if _ingest_running:
+        return {"status": "already_running", "message": "Ingestion already in progress"}
+
+    _ingest_running = True
+    db = get_firestore()
+    started_at = datetime.now(timezone.utc).isoformat()
+
+    async def _run():
+        global _ingest_running
+        try:
+            env = {
+                "PYTHONPATH": str(_REPO_ROOT),
+                "FIRESTORE_EMULATOR_HOST": "localhost:8681",
+                "GOOGLE_CLOUD_PROJECT": get_settings().firestore_project_id,
+            }
+            # Copy current process env and overlay
+            import os
+            full_env = {**os.environ, **env}
+
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                str(_REPO_ROOT / "scripts" / "run_ingest.py"),
+                "--days", str(days),
+                "--max-per-portal", str(max_per_portal),
+                cwd=str(_REPO_ROOT),
+                env=full_env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout, _ = await proc.communicate()
+            output = stdout.decode() if stdout else ""
+
+            # Parse lead count from output
+            leads_stored = 0
+            contractors = 0
+            for line in output.splitlines():
+                if "Leads stored:" in line:
+                    try: leads_stored = int(line.split(":")[1].strip())
+                    except: pass
+                if "Contractors:" in line:
+                    try: contractors = int(line.split(":")[1].strip())
+                    except: pass
+
+            _write_ingest_status(db, {
+                "last_run": datetime.now(timezone.utc).isoformat(),
+                "started_at": started_at,
+                "leads_stored": leads_stored,
+                "contractors_updated": contractors,
+                "sources": ["chicago", "austin", "sf", "nyc", "san-diego", "sam.gov", "usaspending"],
+                "exit_code": proc.returncode,
+                "success": proc.returncode == 0,
+            })
+            # Clear dashboard cache so next load shows fresh counts
+            get_cache().clear()
+
+        except Exception as exc:
+            _write_ingest_status(db, {
+                "last_run": datetime.now(timezone.utc).isoformat(),
+                "error": str(exc),
+                "success": False,
+            })
+        finally:
+            _ingest_running = False
+
+    asyncio.create_task(_run())
+    return {"status": "started", "message": "Ingestion running in background — check /api/ingest/status"}
 
 
 @app.get("/api/config")

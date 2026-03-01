@@ -85,17 +85,33 @@ def dashboard_stats(
                 if posted_naive >= week_start:
                     stats["new_this_week"] += 1
 
-        # City for hot markets
-        # Address format: "street, city, state zip"  OR  "city, state zip"
-        addr = data.get("addr", "")
-        if addr:
-            parts = [p.strip() for p in addr.split(",")]
-            if len(parts) >= 3:
-                # Full address: take part[1] as city
-                city_counter[parts[1]] += 1
-            elif len(parts) == 2:
-                # City-only address: take part[0] as city
-                city_counter[parts[0]] += 1
+        # City for hot markets — map src portal prefix to real city name
+        _PORTAL_CITY = {
+            "chicago": "Chicago, IL",
+            "austin": "Austin, TX",
+            "sf": "San Francisco, CA",
+            "nyc": "New York City, NY",
+            "san-diego": "San Diego, CA",
+            "usaspending": "Federal (Various)",
+            "sam": "Federal (Various)",
+        }
+        src = data.get("src", "")
+        city = ""
+        for portal_key, city_name in _PORTAL_CITY.items():
+            if src.startswith(portal_key):
+                city = city_name
+                break
+        if not city:
+            # Fallback: try addr parsing
+            addr = data.get("addr", "")
+            if addr:
+                parts = [p.strip() for p in addr.split(",")]
+                if len(parts) >= 3:
+                    city = parts[1]
+                elif len(parts) == 2:
+                    city = parts[0]
+        if city:
+            city_counter[city] += 1
 
     stats["by_trade"] = dict(trade_counter.most_common(15))
     if stats["total_leads"]:

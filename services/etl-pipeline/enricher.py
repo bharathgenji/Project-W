@@ -19,12 +19,13 @@ from shared.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Note: double-brace {{ }} escapes literal braces inside .format() templates
 _EXTRACTION_PROMPT = """\
 Extract structured data from this construction permit or bid description.
 Return ONLY valid JSON, no explanation.
 
 Schema:
-{
+{{
   "project_type": "new_build" | "renovation" | "repair" | "addition" | "compliance",
   "owner_type": "residential" | "small_commercial" | "large_commercial" | "institutional",
   "sqft": <number or null>,
@@ -32,11 +33,14 @@ Schema:
   "key_materials": [<list of specific materials, max 5>],
   "urgency": "high" | "medium" | "low",
   "complexity": "simple" | "moderate" | "complex"
-}
+}}
 
 Description: {description}
 
 Return ONLY the JSON object."""
+
+# Set to True after first 402/credit error — skip all remaining enrichments
+_no_credits = False
 
 
 async def enrich_lead(lead: dict[str, Any]) -> dict[str, Any]:
@@ -45,6 +49,10 @@ async def enrich_lead(lead: dict[str, Any]) -> dict[str, Any]:
     Returns updated lead dict with 'ai' field added.
     Non-blocking — logs and returns original on any error.
     """
+    global _no_credits
+    if _no_credits:
+        return lead
+
     settings = get_settings()
     if not settings.has_ai_enrichment:
         return lead
@@ -73,13 +81,24 @@ async def enrich_lead(lead: dict[str, Any]) -> dict[str, Any]:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
+        # Find JSON object within the response
+        start = raw.find("{")
+        end = raw.rfind("}") + 1
+        if start >= 0 and end > start:
+            raw = raw[start:end]
         ai_data = json.loads(raw.strip())
         lead["ai"] = ai_data
-        logger.info("ai_enrichment_ok", lead_id=lead.get("id"), project_type=ai_data.get("project_type"))
+        logger.info(f"ai_enrichment_ok: lead={lead.get('id')} type={ai_data.get('project_type')}")
 
     except json.JSONDecodeError as exc:
-        logger.warning("ai_enrichment_parse_error", error=str(exc))
+        logger.warning(f"ai_enrichment_parse_error: {exc}")
     except Exception as exc:
-        logger.warning("ai_enrichment_failed", error=str(exc))
+        err_str = str(exc)
+        # Credit balance errors — disable for remaining leads to avoid hammering the API
+        if "credit balance" in err_str or "402" in err_str or "insufficient" in err_str.lower():
+            _no_credits = True
+            logger.warning("ai_enrichment_disabled: no API credits — skipping enrichment for all remaining leads")
+        else:
+            logger.warning(f"ai_enrichment_failed: {exc}")
 
     return lead
