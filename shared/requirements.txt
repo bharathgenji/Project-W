@@ -8,3 +8,4 @@ python-dateutil>=2.9
 phonenumbers>=8.13
 jellyfish>=1.0
 pyyaml>=6.0
+google-genai>=1.0.0

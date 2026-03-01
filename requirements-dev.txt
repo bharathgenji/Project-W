@@ -9,3 +9,4 @@ pytest-playwright>=0.5
 # Linting & Type Checking
 ruff>=0.4
 mypy>=1.10
+google-genai>=1.0.0

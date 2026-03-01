@@ -35,10 +35,12 @@ class Settings(BaseSettings):
     firebase_project_id: str = ""
     firebase_web_api_key: str = ""
 
-    # AI Enrichment (Anthropic)
+    # AI Enrichment — Gemini (primary) or Anthropic (fallback)
+    gemini_api_key: str = ""
     anthropic_api_key: str = ""
     ai_enrichment_enabled: bool = False
-    ai_enrichment_model: str = "claude-haiku-4-5"
+    ai_enrichment_model: str = "gemma-3-27b-it"   # free-tier Gemini model
+    ai_enrichment_max_per_run: int = 300           # cap per ingestion run (30 RPM * 10 min)
 
     # Email (Resend)
     resend_api_key: str = ""
@@ -57,7 +59,8 @@ class Settings(BaseSettings):
 
     @property
     def has_ai_enrichment(self) -> bool:
-        return bool(self.anthropic_api_key) and self.ai_enrichment_enabled
+        has_key = bool(self.gemini_api_key) or bool(self.anthropic_api_key)
+        return has_key and self.ai_enrichment_enabled
 
     @property
     def has_email(self) -> bool:

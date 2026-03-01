@@ -260,6 +260,8 @@ async def run_etl(
 ) -> dict[str, Any]:
     """Run ETL pipeline on all ingested JSONL files."""
     from services.etl_pipeline.pipeline import process_batch
+    from services.etl_pipeline.enricher import reset_run_counter
+    reset_run_counter()  # reset per-run cap and quota error counter
 
     total_leads = 0
     total_errors = 0
