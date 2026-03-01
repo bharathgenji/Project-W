@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 
@@ -40,9 +40,13 @@ def score_lead(lead: dict[str, Any]) -> int:
                 posted = None
 
         if isinstance(posted, datetime):
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             if posted.tzinfo:
-                now = now.replace(tzinfo=posted.tzinfo)
+                # posted is timezone-aware: align now to same tzinfo
+                now = now.astimezone(posted.tzinfo)
+            else:
+                # posted is naive: strip tz from now to match
+                now = now.replace(tzinfo=None)
             age = now - posted
             if age <= timedelta(days=7):
                 score += 25

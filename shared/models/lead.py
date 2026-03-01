@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
@@ -37,4 +37,4 @@ class Lead(BaseModel):
     score: int = 0
     src: str = ""  # source_id
     keywords: list[str] = Field(default_factory=list)
-    updated: datetime = Field(default_factory=datetime.utcnow)
+    updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

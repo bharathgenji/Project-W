@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -62,7 +62,7 @@ async def ingest_portal(
         logger.error("socrata_fetch_failed", portal=portal_id, status=e.response.status_code)
         firestore.update_ingestion_state(portal_id, {
             "source_id": portal_id,
-            "last_run": datetime.utcnow(),
+            "last_run": datetime.now(timezone.utc),
             "errors": (last_run_info or {}).get("errors", 0) + 1,
         })
         return 0
@@ -81,7 +81,7 @@ async def ingest_portal(
             logger.warning("field_mapping_error", portal=portal_id, error=str(e))
 
     # Write to storage
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     storage_path = f"permits/{today}/{portal_id}.jsonl"
     records_dicts = [p.model_dump(mode="json") for p in permits]
     storage.write_jsonl(storage_path, records_dicts)
@@ -101,7 +101,7 @@ async def ingest_portal(
     # Update ingestion state
     firestore.update_ingestion_state(portal_id, {
         "source_id": portal_id,
-        "last_run": datetime.utcnow(),
+        "last_run": datetime.now(timezone.utc),
         "last_record_date": today,
         "records_ingested": len(permits),
         "errors": 0,

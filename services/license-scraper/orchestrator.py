@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from shared.clients.firestore_client import FirestoreClient
@@ -44,7 +44,7 @@ def get_scraper_for_day(day_of_month: int) -> BaseLicenseScraper:
 async def run_scrape(day_of_month: int | None = None) -> dict[str, Any]:
     """Run the license scraper for the scheduled state."""
     if day_of_month is None:
-        day_of_month = datetime.utcnow().day
+        day_of_month = datetime.now(timezone.utc).day
 
     settings = Settings()
     storage = StorageClient(
@@ -53,7 +53,7 @@ async def run_scrape(day_of_month: int | None = None) -> dict[str, Any]:
         bucket_name=settings.gcs_bucket_name,
     )
     firestore = FirestoreClient.get_instance(settings.firestore_project_id)
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     scraper = get_scraper_for_day(day_of_month)
     source_name = scraper.source_name
@@ -83,7 +83,7 @@ async def run_scrape(day_of_month: int | None = None) -> dict[str, Any]:
         # Update ingestion state
         firestore.update_ingestion_state(f"scraper-{source_name}", {
             "source_id": f"scraper-{source_name}",
-            "last_run": datetime.utcnow(),
+            "last_run": datetime.now(timezone.utc),
             "last_record_date": today,
             "records_ingested": len(licenses),
             "errors": 0,
@@ -100,7 +100,7 @@ async def run_scrape(day_of_month: int | None = None) -> dict[str, Any]:
         logger.error("scrape_failed", source=source_name, error=str(e))
         firestore.update_ingestion_state(f"scraper-{source_name}", {
             "source_id": f"scraper-{source_name}",
-            "last_run": datetime.utcnow(),
+            "last_run": datetime.now(timezone.utc),
             "errors": 1,
         })
         return {"source": source_name, "error": str(e)}

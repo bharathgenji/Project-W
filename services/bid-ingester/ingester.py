@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from shared.clients.firestore_client import FirestoreClient
@@ -24,7 +24,7 @@ async def run_bid_ingestion(mode: str = "incremental") -> dict[str, Any]:
         bucket_name=settings.gcs_bucket_name,
     )
     firestore = FirestoreClient.get_instance(settings.firestore_project_id)
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     results: dict[str, Any] = {}
 
     # 1. SAM.gov opportunities
@@ -85,7 +85,7 @@ async def run_bid_ingestion(mode: str = "incremental") -> dict[str, Any]:
     # Update ingestion state
     firestore.update_ingestion_state("bid-ingester", {
         "source_id": "bid-ingester",
-        "last_run": datetime.utcnow(),
+        "last_run": datetime.now(timezone.utc),
         "last_record_date": today,
         "records_ingested": sam_count + usa_count,
         "errors": 0,

@@ -3,51 +3,63 @@
 SHELL := /bin/bash
 export MSYS_NO_PATHCONV=1
 
+# Detect OS: use Scripts/ on Windows, bin/ on Unix
+ifeq ($(OS),Windows_NT)
+	VENV_BIN := .venv/Scripts
+else
+	VENV_BIN := .venv/bin
+endif
+
 # ---- Setup ----
 setup:
-	python -m venv .venv
-	.venv/Scripts/pip install --upgrade pip
-	.venv/Scripts/pip install -r requirements-dev.txt
-	.venv/Scripts/pip install -r shared/requirements.txt
+	python3 -m venv .venv
+	$(VENV_BIN)/pip install --upgrade pip
+	$(VENV_BIN)/pip install -r requirements-dev.txt
+	$(VENV_BIN)/pip install -r shared/requirements.txt
 	@for svc in permit-ingester bid-ingester license-scraper etl-pipeline api-server; do \
-		.venv/Scripts/pip install -r services/$$svc/requirements.txt; \
+		$(VENV_BIN)/pip install -r services/$$svc/requirements.txt; \
+	done
+	@# Create Python-importable symlinks — hyphenated dir names aren't valid module names
+	@for svc in api-server permit-ingester bid-ingester etl-pipeline license-scraper; do \
+		mod=$$(echo $$svc | tr '-' '_'); \
+		test -L services/$$mod || ln -s $$svc services/$$mod; \
 	done
 	cd services/api-server/frontend && npm install
 
 # ---- Testing ----
 test-unit:
-	.venv/Scripts/pytest tests/unit -v --tb=short -m unit
+	PYTHONPATH=$(PWD) $(VENV_BIN)/pytest tests/unit -v --tb=short -m unit
 
 test-integration:
 	docker compose -f docker-compose.test.yml up -d firestore-emulator
 	@echo "Waiting for Firestore emulator..."
-	@sleep 3
-	FIRESTORE_EMULATOR_HOST=localhost:8681 .venv/Scripts/pytest tests/integration -v --tb=short -m integration
+	@sleep 5
+	PYTHONPATH=$(PWD) FIRESTORE_EMULATOR_HOST=localhost:8681 $(VENV_BIN)/pytest tests/integration -v --tb=short -m integration
 	docker compose -f docker-compose.test.yml down
 
 test-e2e:
 	docker compose up -d
 	@echo "Waiting for services..."
 	@sleep 8
-	.venv/Scripts/pytest tests/e2e -v --tb=short -m e2e
+	PYTHONPATH=$(PWD) $(VENV_BIN)/pytest tests/e2e -v --tb=short -m e2e
 	docker compose down
 
 test-all: test-unit test-integration
 
 coverage:
-	.venv/Scripts/pytest tests/unit tests/integration --cov --cov-report=html --cov-report=xml -m "unit or integration"
+	PYTHONPATH=$(PWD) $(VENV_BIN)/pytest tests/unit tests/integration --cov --cov-report=html --cov-report=xml -m "unit or integration"
 
 # ---- Quality ----
 lint:
-	.venv/Scripts/ruff check .
-	.venv/Scripts/ruff format --check .
+	$(VENV_BIN)/ruff check .
+	$(VENV_BIN)/ruff format --check .
 
 lint-fix:
-	.venv/Scripts/ruff check --fix .
-	.venv/Scripts/ruff format .
+	$(VENV_BIN)/ruff check --fix .
+	$(VENV_BIN)/ruff format .
 
 typecheck:
-	.venv/Scripts/mypy shared/ services/
+	$(VENV_BIN)/mypy shared/ services/
 
 # ---- Docker ----
 build:

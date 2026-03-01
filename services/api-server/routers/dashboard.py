@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -32,7 +32,8 @@ def dashboard_stats(
         "hot_markets": [],
     }
 
-    now = datetime.utcnow()
+    # Use naive UTC datetimes for comparison (stored posted values are naive ISO strings)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - timedelta(days=7)
 
@@ -78,11 +79,16 @@ def dashboard_stats(
                     stats["new_this_week"] += 1
 
         # City for hot markets
+        # Address format: "street, city, state zip"  OR  "city, state zip"
         addr = data.get("addr", "")
         if addr:
-            parts = addr.split(",")
-            if len(parts) >= 2:
-                city_counter[parts[0].strip()] += 1
+            parts = [p.strip() for p in addr.split(",")]
+            if len(parts) >= 3:
+                # Full address: take part[1] as city
+                city_counter[parts[1]] += 1
+            elif len(parts) == 2:
+                # City-only address: take part[0] as city
+                city_counter[parts[0]] += 1
 
     stats["by_trade"] = dict(trade_counter.most_common(15))
     stats["hot_markets"] = [

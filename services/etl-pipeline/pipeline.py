@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from shared.clients.firestore_client import FirestoreClient
@@ -115,7 +115,7 @@ def _process_permit(record: dict[str, Any]) -> dict[str, Any] | None:
         "posted": normalized.get("issued_date") or normalized.get("filed_date"),
         "src": normalized.get("source_id", ""),
         "keywords": extract_keywords(f"{description} {trade} {addr_str}"),
-        "updated": datetime.utcnow().isoformat(),
+        "updated": datetime.now(timezone.utc).isoformat(),
     }
 
     lead["score"] = score_lead(lead)
@@ -153,7 +153,7 @@ def _process_bid(record: dict[str, Any]) -> dict[str, Any] | None:
         "deadline": normalized.get("response_deadline"),
         "src": normalized.get("source", ""),
         "keywords": extract_keywords(f"{description} {trade} {addr_str}"),
-        "updated": datetime.utcnow().isoformat(),
+        "updated": datetime.now(timezone.utc).isoformat(),
     }
 
     lead["score"] = score_lead(lead)
@@ -191,7 +191,7 @@ def _process_license(record: dict[str, Any], firestore: FirestoreClient) -> None
         "phone": normalize_phone(record.get("phone", "")),
         "email": record.get("email", ""),
         "website": record.get("website", ""),
-        "updated": datetime.utcnow().isoformat(),
+        "updated": datetime.now(timezone.utc).isoformat(),
     }
 
     firestore.contractors().document(contractor_id).set(contractor_data, merge=True)
@@ -227,7 +227,7 @@ def _update_contractor_from_lead(lead: dict[str, Any], firestore: FirestoreClien
         "id": contractor_id,
         "name": name,
         "last_permit": lead.get("posted"),
-        "updated": datetime.utcnow().isoformat(),
+        "updated": datetime.now(timezone.utc).isoformat(),
     }
 
     firestore.contractors().document(contractor_id).set(update, merge=True)

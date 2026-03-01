@@ -24,5 +24,8 @@ COPY --from=frontend-build /frontend/dist services/api-server/frontend/dist
 
 ENV PYTHONPATH=/app
 
+# api-server dir uses a hyphen which Python can't import — create a symlink
+RUN ln -s /app/services/api-server /app/services/api_server
+
 EXPOSE 8080
 CMD ["uvicorn", "services.api_server.main:app", "--host", "0.0.0.0", "--port", "8080"]

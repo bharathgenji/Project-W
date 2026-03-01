@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from ..dependencies import get_cache, get_firestore
 
@@ -34,9 +35,9 @@ def list_leads(
     query = db.leads()
 
     if trade:
-        query = query.where("trade", "==", trade)
+        query = query.where(filter=FieldFilter("trade", "==", trade))
     if status:
-        query = query.where("status", "==", status)
+        query = query.where(filter=FieldFilter("status", "==", status))
 
     # Firestore compound queries are limited, so we do some filtering in-memory
     docs = query.limit(limit + offset).stream()

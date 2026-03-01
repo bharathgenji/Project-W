@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import httpx
@@ -43,7 +43,7 @@ class USASpendingClient:
     ) -> list[BidRecord]:
         """Fetch recent federal construction contract awards."""
         client = await self._get_client()
-        to_date = datetime.utcnow()
+        to_date = datetime.now(timezone.utc)
         from_date = to_date - timedelta(days=days_back)
 
         payload = {

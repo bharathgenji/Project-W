@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from ..dependencies import get_firestore
 
@@ -22,7 +23,7 @@ def list_contractors(
     query = db.contractors()
 
     if trade:
-        query = query.where("trades", "array_contains", trade)
+        query = query.where(filter=FieldFilter("trades", "array_contains", trade))
 
     docs = query.limit(limit + offset + 100).stream()
     results = []
@@ -73,7 +74,7 @@ def get_contractor(
     if name:
         lead_docs = (
             db.leads()
-            .where("gc.n", "==", name)
+            .where(filter=FieldFilter("gc.n", "==", name))
             .limit(20)
             .stream()
         )

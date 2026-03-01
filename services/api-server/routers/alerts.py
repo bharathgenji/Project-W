@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel
 
 from shared.utils import generate_id
@@ -37,7 +38,7 @@ def create_alert(
         "city": alert.city,
         "min_value": alert.min_value,
         "max_value": alert.max_value,
-        "created": datetime.utcnow().isoformat(),
+        "created": datetime.now(timezone.utc).isoformat(),
         "active": True,
     }
     db.alerts().document(alert_id).set(alert_data)
@@ -52,7 +53,7 @@ def list_alerts(
     """List all alerts, optionally filtered by email."""
     query = db.alerts()
     if email:
-        query = query.where("email", "==", email)
+        query = query.where(filter=FieldFilter("email", "==", email))
 
     docs = query.limit(100).stream()
     return [{**doc.to_dict(), "id": doc.id} for doc in docs]

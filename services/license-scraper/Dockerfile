@@ -13,5 +13,8 @@ COPY services/license-scraper/ services/license-scraper/
 
 ENV PYTHONPATH=/app
 
+# Hyphenated dir not importable as Python module — create symlink
+RUN ln -s /app/services/license-scraper /app/services/license_scraper
+
 EXPOSE 8080
 CMD ["uvicorn", "services.license_scraper.main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import httpx
@@ -103,7 +103,7 @@ class SamGovClient:
         max_per_naics: int = 100,
     ) -> list[BidRecord]:
         """Fetch all construction opportunities across NAICS codes."""
-        to_date = datetime.utcnow()
+        to_date = datetime.now(timezone.utc)
         from_date = to_date - timedelta(days=days_back)
         posted_from = from_date.strftime("%m/%d/%Y")
         posted_to = to_date.strftime("%m/%d/%Y")

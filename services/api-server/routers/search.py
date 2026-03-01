@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from ..dependencies import get_firestore
 
@@ -24,7 +25,7 @@ def search(
         primary_keyword = keywords[0]
         lead_docs = (
             db.leads()
-            .where("keywords", "array_contains", primary_keyword)
+            .where(filter=FieldFilter("keywords", "array_contains", primary_keyword))
             .limit(limit)
             .stream()
         )
