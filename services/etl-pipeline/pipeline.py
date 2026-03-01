@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
+
 from shared.clients.firestore_client import FirestoreClient
 from shared.clients.storage_client import StorageClient
 from shared.config import Settings
@@ -59,6 +61,16 @@ async def process_batch(source_type: str, storage_path: str) -> dict[str, Any]:
                 # Store in Firestore
                 firestore.leads().document(lead["id"]).set(lead, merge=True)
                 leads_stored += 1
+
+                # Push real-time WebSocket alert to matching subscribers
+                try:
+                    async with httpx.AsyncClient(timeout=2.0) as _notify_client:
+                        await _notify_client.post(
+                            f"{settings.api_server_url}/api/internal/notify-lead",
+                            json={"lead": lead},
+                        )
+                except Exception:
+                    pass  # non-blocking — don't fail ETL on notification errors
 
                 # Update contractor profile if contractor info exists
                 _update_contractor_from_lead(lead, firestore)

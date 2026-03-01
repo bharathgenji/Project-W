@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { ToastContainer } from './Toast';
 
 const navItems = [
   {
@@ -17,6 +18,15 @@ const navItems = [
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/pipeline',
+    label: 'My Pipeline',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0H3" />
       </svg>
     ),
   },
@@ -49,15 +59,85 @@ const navItems = [
   },
 ];
 
+// ─── WebSocket hook ──────────────────────────────────────────────────────────
+
+function useLeadAlerts(onNewLead) {
+  const wsRef = useRef(null);
+  const reconnectTimer = useRef(null);
+
+  const connect = useCallback(() => {
+    const email = localStorage.getItem('pipeline_email');
+    if (!email) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = `${protocol}//${window.location.host}/api/ws/alerts?email=${encodeURIComponent(email)}`;
+
+    try {
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'new_lead') onNewLead(data.lead);
+        } catch { /* ignore parse errors */ }
+      };
+
+      ws.onclose = () => {
+        // Reconnect after 5 seconds
+        reconnectTimer.current = setTimeout(connect, 5000);
+      };
+
+      // Keep-alive ping every 30s
+      const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send('ping');
+      }, 30000);
+
+      ws.onerror = () => clearInterval(pingInterval);
+    } catch { /* WebSocket not available */ }
+  }, [onNewLead]);
+
+  useEffect(() => {
+    connect();
+    // Re-connect if email changes (user logs in)
+    const onStorage = (e) => { if (e.key === 'pipeline_email') connect(); };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      clearTimeout(reconnectTimer.current);
+      wsRef.current?.close();
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [connect]);
+}
+
+// ─── Layout component ────────────────────────────────────────────────────────
+
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [toasts, setToasts] = useState([]);
   const location = useLocation();
+
+  const handleNewLead = useCallback((lead) => {
+    const id = `toast-${Date.now()}`;
+    setToasts((prev) => [...prev.slice(-4), {   // max 5 toasts
+      id,
+      message: lead.title?.slice(0, 80) || 'New matching lead found',
+      leadId: lead.id,
+    }]);
+  }, []);
+
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  useLeadAlerts(handleNewLead);
 
   const pageTitle = (() => {
     const path = location.pathname;
     if (path.startsWith('/dashboard')) return 'Dashboard';
     if (path.startsWith('/leads/')) return 'Lead Detail';
     if (path.startsWith('/leads')) return 'Lead Browser';
+    if (path.startsWith('/pipeline')) return 'My Pipeline';
     if (path.startsWith('/contractors/')) return 'Contractor Profile';
     if (path.startsWith('/contractors')) return 'Contractor Directory';
     if (path.startsWith('/markets')) return 'Market Maps';
@@ -70,17 +150,11 @@ export default function Layout() {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div
-            className="fixed inset-0 bg-gray-600/75"
-            onClick={() => setSidebarOpen(false)}
-          />
+          <div className="fixed inset-0 bg-gray-600/75" onClick={() => setSidebarOpen(false)} />
           <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-primary-900">
             <div className="flex h-16 items-center justify-between px-6">
               <span className="text-xl font-bold text-white">BuildScope</span>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="text-primary-200 hover:text-white"
-              >
+              <button onClick={() => setSidebarOpen(false)} className="text-primary-200 hover:text-white">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -112,36 +186,46 @@ export default function Layout() {
       <div className="lg:pl-64">
         {/* Top bar */}
         <div className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b border-gray-200 bg-white px-4 sm:px-6 lg:px-8 shadow-sm">
-          <button
-            className="lg:hidden -m-2.5 p-2.5 text-gray-700"
-            onClick={() => setSidebarOpen(true)}
-          >
+          <button className="lg:hidden -m-2.5 p-2.5 text-gray-700" onClick={() => setSidebarOpen(true)}>
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </button>
-
           <div className="flex flex-1 items-center justify-between">
             <h1 className="text-lg font-semibold text-gray-900">{pageTitle}</h1>
             <div className="flex items-center gap-3">
-              <div className="hidden sm:block relative">
-                <SearchBox />
-              </div>
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-700 font-semibold text-sm">
-                U
-              </div>
+              <div className="hidden sm:block relative"><SearchBox /></div>
+              <WsIndicator />
             </div>
           </div>
         </div>
 
-        {/* Page content */}
-        <main className="p-4 sm:p-6 lg:p-8">
-          <Outlet />
-        </main>
+        <main className="p-4 sm:p-6 lg:p-8"><Outlet /></main>
       </div>
+
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
+
+// ─── WebSocket status indicator ──────────────────────────────────────────────
+
+function WsIndicator() {
+  const email = localStorage.getItem('pipeline_email');
+  if (!email) return null;
+  return (
+    <div className="flex items-center gap-1.5" title="Real-time alerts connected">
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+      </span>
+      <span className="text-xs text-gray-400 hidden sm:inline">Live</span>
+    </div>
+  );
+}
+
+// ─── Sidebar nav ─────────────────────────────────────────────────────────────
 
 function SidebarNav({ onClick }) {
   return (
@@ -153,9 +237,7 @@ function SidebarNav({ onClick }) {
           onClick={onClick}
           className={({ isActive }) =>
             `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${
-              isActive
-                ? 'bg-primary-800 text-white'
-                : 'text-primary-200 hover:bg-primary-800/50 hover:text-white'
+              isActive ? 'bg-primary-800 text-white' : 'text-primary-200 hover:bg-primary-800/50 hover:text-white'
             }`
           }
         >
@@ -163,10 +245,7 @@ function SidebarNav({ onClick }) {
           {item.label}
         </NavLink>
       ))}
-
       <div className="flex-1" />
-
-      {/* Bottom section */}
       <div className="border-t border-primary-800 pt-4 mt-4">
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-700 text-primary-200 text-xs font-medium">
@@ -181,6 +260,8 @@ function SidebarNav({ onClick }) {
     </nav>
   );
 }
+
+// ─── Search box ──────────────────────────────────────────────────────────────
 
 function SearchBox() {
   const [query, setQuery] = useState('');
@@ -219,7 +300,6 @@ function SearchBox() {
           />
         </div>
       </form>
-
       {open && results && (
         <div className="absolute right-0 top-full mt-2 w-80 rounded-lg bg-white shadow-lg ring-1 ring-gray-200 overflow-hidden z-50">
           {results.leads?.length > 0 && (
@@ -228,13 +308,9 @@ function SearchBox() {
                 Leads ({results.leads.length})
               </div>
               {results.leads.slice(0, 5).map((lead) => (
-                <a
-                  key={lead.id}
-                  href={`/leads/${lead.id}`}
-                  className="block px-4 py-2 hover:bg-primary-50 text-sm text-gray-700 border-b border-gray-100"
-                >
-                  <span className="font-medium">{lead.title || lead.desc?.slice(0, 60) || 'Untitled'}</span>
-                  <span className="block text-xs text-gray-400">{lead.trade} - {lead.addr}</span>
+                <a key={lead.id} href={`/leads/${lead.id}`} className="block px-4 py-2 hover:bg-primary-50 text-sm text-gray-700 border-b border-gray-100">
+                  <span className="font-medium line-clamp-1">{lead.title || 'Untitled'}</span>
+                  <span className="block text-xs text-gray-400">{lead.trade} · {lead.addr}</span>
                 </a>
               ))}
             </div>
@@ -245,21 +321,15 @@ function SearchBox() {
                 Contractors ({results.contractors.length})
               </div>
               {results.contractors.slice(0, 5).map((c) => (
-                <a
-                  key={c.id}
-                  href={`/contractors/${c.id}`}
-                  className="block px-4 py-2 hover:bg-primary-50 text-sm text-gray-700 border-b border-gray-100"
-                >
+                <a key={c.id} href={`/contractors/${c.id}`} className="block px-4 py-2 hover:bg-primary-50 text-sm text-gray-700 border-b border-gray-100">
                   <span className="font-medium">{c.name}</span>
                   <span className="block text-xs text-gray-400">{c.trades?.join(', ')}</span>
                 </a>
               ))}
             </div>
           )}
-          {(!results.leads?.length && !results.contractors?.length) && (
-            <div className="px-4 py-6 text-center text-sm text-gray-500">
-              No results found for "{query}"
-            </div>
+          {!results.leads?.length && !results.contractors?.length && (
+            <div className="px-4 py-6 text-center text-sm text-gray-500">No results for "{query}"</div>
           )}
         </div>
       )}

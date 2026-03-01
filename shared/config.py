@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     # Service URLs
     etl_pipeline_url: str = "http://localhost:8003"
+    api_server_url: str = "http://localhost:8005"
 
     # App
     log_level: str = "INFO"

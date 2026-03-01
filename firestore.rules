@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // API server has full access via service account (server-side only)
+    // These rules apply to direct client SDK access — lock down in production
+    match /{document=**} {
+      // TODO: Replace with proper auth rules when Firebase Auth is added
+      // For now: allow reads, restrict writes to server
+      allow read: if true;
+      allow write: if false;  // all writes go through the API server
+    }
+  }
+}

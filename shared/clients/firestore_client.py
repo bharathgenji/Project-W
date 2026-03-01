@@ -42,6 +42,9 @@ class FirestoreClient:
     def alerts(self) -> firestore.CollectionReference:
         return self.db.collection("alerts")
 
+    def pipeline(self) -> firestore.CollectionReference:
+        return self.db.collection("pipeline")
+
     def get_last_run(self, source_id: str) -> dict[str, Any] | None:
         doc = self.ingestion_state().document(source_id).get()
         if doc.exists:

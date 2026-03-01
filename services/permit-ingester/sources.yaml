@@ -305,3 +305,56 @@ portals:
       address_street: address
       estimated_cost: valuation
       status: status
+
+  # ADDITIONAL TIER 1/HIGH PRIORITY CITIES
+  - id: washington-dc
+    domain: opendata.dc.gov
+    dataset_id: awjx-nebs
+    name: Washington DC
+    state: DC
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type_name
+      work_description: permit_description
+      address_street: address
+      estimated_cost: estimated_cost
+      contractor_name: contractor_trade_name
+      status: permit_status_name
+      issued_date: issue_date
+      lat: latitude
+      lng: longitude
+
+  - id: nashville
+    domain: data.nashville.gov
+    dataset_id: 3h5w-q8b7
+    name: Nashville
+    state: TN
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      work_description: description
+      address_street: address
+      estimated_cost: const_cost
+      contractor_name: contractor
+      status: status
+      issued_date: date_issued
+
+  - id: miami-dade
+    domain: opendata.miamidade.gov
+    dataset_id: dv5p-i7yv
+    name: Miami-Dade County
+    state: FL
+    priority: high
+    field_map:
+      permit_number: process_number
+      permit_type: permit_type
+      work_description: work_description
+      address_street: address
+      estimated_cost: job_value
+      contractor_name: contractor_full_name
+      status: status
+      issued_date: issue_date
+      lat: y_coordinate
+      lng: x_coordinate
