@@ -24,24 +24,15 @@ logger = logging.getLogger(__name__)
 
 # ── Prompt — double-brace {{ }} escapes literal braces in .format() ──────────
 _PROMPT = """\
-Extract structured data from this construction permit or bid description.
-Return ONLY a valid JSON object, no explanation, no markdown fences.
+Construction permit. Return ONLY JSON, no markdown:
+{{"project_type":"new_build|renovation|repair|addition|compliance","owner_type":"residential|small_commercial|large_commercial|institutional","sqft":null,"units":null,"key_materials":[],"urgency":"high|medium|low","complexity":"simple|moderate|complex"}}
 
-Fields:
-  project_type: "new_build" | "renovation" | "repair" | "addition" | "compliance"
-  owner_type:   "residential" | "small_commercial" | "large_commercial" | "institutional"
-  sqft:         number or null
-  units:        number or null
-  key_materials: list of up to 5 specific materials
-  urgency:      "high" | "medium" | "low"
-  complexity:   "simple" | "moderate" | "complex"
-
-Description: {description}"""
+Fill for: {description}"""
 
 # ── Module-level state ────────────────────────────────────────────────────────
 _enriched_this_run: int = 0
 _last_call_ts: float = 0.0
-_MIN_INTERVAL = 2.15          # seconds between calls → ~28 RPM
+_MIN_INTERVAL = 16.0          # seconds between calls → ~3.5 RPM, ~1200 TPM (under 1500 TPM limit)
 _QUOTA_ERRORS = 0
 _MAX_QUOTA_ERRORS = 3         # give up after 3 consecutive 429s
 

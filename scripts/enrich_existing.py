@@ -35,8 +35,7 @@ async def main(limit: int, skip_enriched: bool) -> None:
     print(f"   Rate:   ~28 RPM (free tier) → ~{limit * 2.15 / 60:.1f} min estimate")
     print()
 
-    query = db.leads().limit(5000)
-    all_docs = list(query.stream())
+    all_docs = list(db.leads().limit(5000).stream())
     print(f"   Found {len(all_docs)} total leads in Firestore")
 
     to_enrich = []
@@ -44,12 +43,17 @@ async def main(limit: int, skip_enriched: bool) -> None:
         data = doc.to_dict()
         if skip_enriched and data.get("ai"):
             continue
-        # Prefer leads with real descriptions
         title = data.get("title", "")
         if len(title) > 20:
             to_enrich.append((doc.id, data))
 
-    print(f"   Enriching {min(len(to_enrich), limit)} leads...")
+    # Sort by score descending — enrich the best leads first
+    to_enrich.sort(key=lambda x: x[1].get("score", 0), reverse=True)
+    print(f"   Top score in queue: {to_enrich[0][1].get('score') if to_enrich else 0}")
+
+    n = min(len(to_enrich), limit)
+    eta = n * 16 / 60
+    print(f"   Enriching {n} leads (~{eta:.0f} min at 16s/call — Gemini free tier)")
     print("   ─" * 30)
 
     enriched = 0

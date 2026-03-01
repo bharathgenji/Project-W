@@ -130,6 +130,9 @@ class SamGovClient:
                 logger.info("sam_naics_fetched", naics=naics, count=len(opportunities))
             except httpx.HTTPStatusError as e:
                 logger.error("sam_fetch_failed", naics=naics, status=e.response.status_code)
+                if e.response.status_code == 429:
+                    logger.warning(f"sam_rate_limited: daily quota exhausted, skipping remaining NAICS codes")
+                    break  # daily quota — no point trying others
 
         logger.info("sam_fetch_complete", total_bids=len(all_bids))
         return all_bids
