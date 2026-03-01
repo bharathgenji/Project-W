@@ -101,7 +101,10 @@ def _process_permit(record: dict[str, Any]) -> dict[str, Any] | None:
     """Process a single permit record into a lead."""
     normalized = normalize_permit_record(record)
     description = normalized.get("work_description", "")
-    trade, confidence = classify_trade(description)
+    permit_type = normalized.get("permit_type", "")
+    # Combine all available text for better classification
+    classify_text = " ".join(filter(None, [description, permit_type])).strip()
+    trade, confidence = classify_trade(classify_text)
 
     address = normalized.get("address", {})
     addr_str = _build_address_string(address)

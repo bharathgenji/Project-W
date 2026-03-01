@@ -2,45 +2,76 @@ from __future__ import annotations
 
 TRADE_KEYWORDS: dict[str, list[str]] = {
     "ELECTRICAL": [
-        "electrical", "wiring", "circuit", "panel", "conduit", "voltage", "transformer",
-        "switchgear", "outlet", "lighting", "generator",
+        "electrical", "electric", "wiring", "rewire", "circuit", "panel", "conduit",
+        "voltage", "transformer", "switchgear", "outlet", "lighting", "generator",
+        "solar", "photovoltaic", "pv system", "ev charger", "ev charging",
+        "meter", "service upgrade", "low voltage", "data cabling", "telecom",
+        "fire alarm", "security system", "camera", "cctv",
     ],
     "PLUMBING": [
-        "plumbing", "pipe", "water heater", "sewer", "drain", "fixture", "backflow",
-        "sprinkler", "irrigation", "faucet", "toilet",
+        "plumbing", "plumb", "pipe", "piping", "water heater", "sewer", "drain",
+        "drainage", "fixture", "backflow", "irrigation", "faucet", "toilet",
+        "water line", "gas line", "water main", "sanitary", "storm drain",
+        "grease trap", "interceptor", "water service", "hydrant",
     ],
     "HVAC": [
-        "hvac", "heating", "cooling", "air conditioning", "duct", "furnace",
-        "refrigeration", "ventilation", "boiler", "heat pump", "thermostat",
+        "hvac", "heating", "cooling", "air conditioning", "air conditioner", "ac unit",
+        "duct", "ductwork", "furnace", "refrigeration", "ventilation", "boiler",
+        "heat pump", "thermostat", "exhaust", "mechanical", "air handler",
+        "mini split", "chiller", "cooling tower", "vrf system",
     ],
     "ROOFING": [
-        "roof", "shingle", "gutter", "flashing", "membrane", "skylight",
+        "roof", "roofing", "re-roof", "reroof", "shingle", "gutter", "flashing",
+        "membrane", "skylight", "flat roof", "pitched roof", "tile roof",
+        "metal roof", "tpo", "epdm", "built-up roof", "fascia", "soffit",
     ],
     "CONCRETE": [
         "concrete", "foundation", "slab", "masonry", "block", "paving", "cement",
-        "footings", "retaining wall",
+        "footings", "retaining wall", "sidewalk", "curb", "driveway", "flatwork",
+        "rebar", "post-tension", "tilt-up", "precast", "stone",
     ],
     "FRAMING": [
         "framing", "structural", "carpentry", "lumber", "timber", "truss", "joist",
+        "beam", "column", "shear wall", "wood frame", "metal stud", "light gauge",
+        "deck", "balcony", "staircase", "stair",
     ],
     "DRYWALL": [
-        "drywall", "plaster", "insulation", "acoustical", "stucco",
+        "drywall", "gypsum", "plaster", "insulation", "acoustical", "stucco",
+        "lath", "interior finish", "t-bar", "drop ceiling", "suspended ceiling",
     ],
     "PAINTING": [
-        "painting", "coating", "wallpaper", "finishing", "staining",
+        "painting", "paint", "coating", "wallpaper", "wall covering", "staining",
+        "epoxy coating", "waterproofing", "sealant", "caulking",
     ],
     "FLOORING": [
-        "flooring", "tile", "carpet", "hardwood", "vinyl", "laminate", "terrazzo",
+        "flooring", "floor", "tile", "carpet", "hardwood", "vinyl", "laminate",
+        "terrazzo", "epoxy floor", "polished concrete", "wood floor", "LVP", "LVT",
     ],
     "GENERAL": [
-        "general", "remodel", "renovation", "addition", "new construction",
-        "tenant improvement", "alteration", "build-out",
+        "general contractor", "remodel", "renovation", "addition", "new construction",
+        "tenant improvement", "alteration", "build-out", "buildout", "fit-out",
+        "commercial build", "residential build", "erect", "construct",
+        "self cert", "cbc", "ibc", "adc",
     ],
     "DEMOLITION": [
-        "demolition", "abatement", "removal", "teardown",
+        "demolition", "demo", "abatement", "asbestos", "removal", "teardown",
+        "deconstruction", "strip out",
     ],
     "FIRE_PROTECTION": [
-        "fire", "sprinkler system", "alarm system", "suppression", "fire protection",
+        "fire sprinkler", "sprinkler system", "fire alarm", "fire suppression",
+        "fire protection", "fire pump", "standpipe", "ansul", "hood suppression",
+    ],
+    "SOLAR": [
+        "solar panel", "solar array", "photovoltaic", "pv install", "solar install",
+        "solar system", "solar roof",
+    ],
+    "WINDOWS_DOORS": [
+        "window", "door", "storefront", "curtain wall", "glazing", "fenestration",
+        "skylight", "garage door", "overhead door",
+    ],
+    "SITE_WORK": [
+        "grading", "excavation", "site work", "landscaping", "paving", "parking lot",
+        "underground utility", "utility trench", "erosion control",
     ],
 }
 

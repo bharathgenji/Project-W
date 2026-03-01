@@ -7,28 +7,32 @@ from typing import Any
 def score_lead(lead: dict[str, Any]) -> int:
     """Score a lead on a 0-100 scale based on multiple factors.
 
-    Factors:
-    - Project value: $0-50K=10, $50-200K=20, $200K+=30
-    - Recency: <7d=25, <30d=15, <90d=5
-    - Contact completeness: phone+email=20, phone only=10, name only=5
-    - Trade specificity: exact known trade=15, GENERAL=5
-    - Competition: single/no contractor listed=10
+    Factors (redesigned for permit-heavy datasets with limited contact info):
+    - Base:            5  (any valid construction lead)
+    - Project value:   $0=0, $1-50K=8, $50-200K=18, $200K-1M=28, $1M+=35
+    - Recency:         <7d=25, <30d=18, <60d=10, <90d=4
+    - Trade known:     specific trade=12, GENERAL=4, UNKNOWN=0
+    - Description:     has meaningful text=8
+    - Contact:         name=5, phone=10, phone+email=15
+    - No incumbent GC: 5  (open opportunity signal)
     """
-    score = 0
+    score = 5  # base — every real lead starts here
 
-    # 1. Project value (max 30 points)
+    # 1. Project value (max 35 points)
     value = lead.get("value") or lead.get("estimated_cost") or 0
     try:
         value = float(value)
     except (ValueError, TypeError):
         value = 0
 
-    if value >= 200_000:
-        score += 30
+    if value >= 1_000_000:
+        score += 35
+    elif value >= 200_000:
+        score += 28
     elif value >= 50_000:
-        score += 20
+        score += 18
     elif value > 0:
-        score += 10
+        score += 8
 
     # 2. Recency (max 25 points)
     posted = lead.get("posted") or lead.get("issued_date") or lead.get("filed_date")
@@ -42,20 +46,36 @@ def score_lead(lead: dict[str, Any]) -> int:
         if isinstance(posted, datetime):
             now = datetime.now(timezone.utc)
             if posted.tzinfo:
-                # posted is timezone-aware: align now to same tzinfo
                 now = now.astimezone(posted.tzinfo)
             else:
-                # posted is naive: strip tz from now to match
                 now = now.replace(tzinfo=None)
             age = now - posted
             if age <= timedelta(days=7):
                 score += 25
             elif age <= timedelta(days=30):
-                score += 15
+                score += 18
+            elif age <= timedelta(days=60):
+                score += 10
             elif age <= timedelta(days=90):
-                score += 5
+                score += 4
 
-    # 3. Contact completeness (max 20 points)
+    # 3. Trade specificity (max 12 points)
+    trade = lead.get("trade", "UNKNOWN")
+    if trade and trade not in ("UNKNOWN", "OTHER", ""):
+        score += 12 if trade != "GENERAL" else 4
+
+    # 4. Description quality (max 8 points)
+    title = lead.get("title", "")
+    description = lead.get("work_description", "")
+    text = (title + " " + description).strip()
+    # Has meaningful content beyond just the permit type prefix
+    content = text.split(" - ", 1)[-1].strip() if " - " in text else text
+    if len(content) > 30:
+        score += 8
+    elif len(content) > 10:
+        score += 4
+
+    # 5. Contact completeness (max 15 points)
     owner = lead.get("owner", {})
     gc = lead.get("gc", lead.get("contractor", {}))
     has_phone = bool(
@@ -69,24 +89,15 @@ def score_lead(lead: dict[str, Any]) -> int:
     )
 
     if has_phone and has_email:
-        score += 20
+        score += 15
     elif has_phone:
         score += 10
     elif has_name:
         score += 5
 
-    # 4. Trade specificity (max 15 points)
-    trade = lead.get("trade", "UNKNOWN")
-    if trade and trade not in ("UNKNOWN", "OTHER"):
-        if trade != "GENERAL":
-            score += 15
-        else:
-            score += 5
-
-    # 5. Competition (max 10 points)
-    # Fewer contractors on a project = better opportunity
+    # 6. Open opportunity (max 5 points)
     gc_name = gc.get("n") or gc.get("name") or ""
     if not gc_name:
-        score += 10  # No contractor listed = untapped opportunity
+        score += 5
 
     return min(score, 100)
