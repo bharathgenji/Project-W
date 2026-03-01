@@ -1,0 +1,219 @@
+name: Deploy to GCP
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  GCP_REGION: us-central1
+  ARTIFACT_REGISTRY: us-central1-docker.pkg.dev
+  REPOSITORY: leadgen
+
+jobs:
+  deploy:
+    name: Build & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Set image tag
+        id: image-tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "tag=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "registry=${{ env.ARTIFACT_REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}" >> "$GITHUB_OUTPUT"
+
+      # ---- Build and Push Docker Images ----
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push permit-ingester
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/permit-ingester/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-tag.outputs.registry }}/permit-ingester:${{ steps.image-tag.outputs.tag }}
+            ${{ steps.image-tag.outputs.registry }}/permit-ingester:latest
+          cache-from: type=gha,scope=permit-ingester
+          cache-to: type=gha,mode=max,scope=permit-ingester
+
+      - name: Build and push bid-ingester
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/bid-ingester/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-tag.outputs.registry }}/bid-ingester:${{ steps.image-tag.outputs.tag }}
+            ${{ steps.image-tag.outputs.registry }}/bid-ingester:latest
+          cache-from: type=gha,scope=bid-ingester
+          cache-to: type=gha,mode=max,scope=bid-ingester
+
+      - name: Build and push license-scraper
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/license-scraper/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-tag.outputs.registry }}/license-scraper:${{ steps.image-tag.outputs.tag }}
+            ${{ steps.image-tag.outputs.registry }}/license-scraper:latest
+          cache-from: type=gha,scope=license-scraper
+          cache-to: type=gha,mode=max,scope=license-scraper
+
+      - name: Build and push etl-pipeline
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/etl-pipeline/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-tag.outputs.registry }}/etl-pipeline:${{ steps.image-tag.outputs.tag }}
+            ${{ steps.image-tag.outputs.registry }}/etl-pipeline:latest
+          cache-from: type=gha,scope=etl-pipeline
+          cache-to: type=gha,mode=max,scope=etl-pipeline
+
+      - name: Build and push api-server
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/api-server/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-tag.outputs.registry }}/api-server:${{ steps.image-tag.outputs.tag }}
+            ${{ steps.image-tag.outputs.registry }}/api-server:latest
+          cache-from: type=gha,scope=api-server
+          cache-to: type=gha,mode=max,scope=api-server
+
+      # ---- Deploy to Cloud Run ----
+
+      - name: Deploy permit-ingester to Cloud Run
+        run: |
+          gcloud run deploy permit-ingester \
+            --image=${{ steps.image-tag.outputs.registry }}/permit-ingester:${{ steps.image-tag.outputs.tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --cpu=1 \
+            --memory=512Mi \
+            --timeout=900 \
+            --concurrency=1 \
+            --max-instances=2 \
+            --min-instances=0 \
+            --no-allow-unauthenticated \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }},STORAGE_BACKEND=gcs,ETL_PIPELINE_URL=${{ secrets.ETL_PIPELINE_URL }}" \
+            --service-account=${{ secrets.CLOUD_RUN_SA }} \
+            --quiet
+
+      - name: Deploy bid-ingester to Cloud Run
+        run: |
+          gcloud run deploy bid-ingester \
+            --image=${{ steps.image-tag.outputs.registry }}/bid-ingester:${{ steps.image-tag.outputs.tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --cpu=1 \
+            --memory=256Mi \
+            --timeout=600 \
+            --max-instances=2 \
+            --min-instances=0 \
+            --no-allow-unauthenticated \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }},STORAGE_BACKEND=gcs,ETL_PIPELINE_URL=${{ secrets.ETL_PIPELINE_URL }}" \
+            --service-account=${{ secrets.CLOUD_RUN_SA }} \
+            --quiet
+
+      - name: Deploy license-scraper to Cloud Run
+        run: |
+          gcloud run deploy license-scraper \
+            --image=${{ steps.image-tag.outputs.registry }}/license-scraper:${{ steps.image-tag.outputs.tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --cpu=2 \
+            --memory=2Gi \
+            --timeout=1800 \
+            --max-instances=2 \
+            --min-instances=0 \
+            --no-allow-unauthenticated \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }},STORAGE_BACKEND=gcs,ETL_PIPELINE_URL=${{ secrets.ETL_PIPELINE_URL }}" \
+            --service-account=${{ secrets.CLOUD_RUN_SA }} \
+            --quiet
+
+      - name: Deploy etl-pipeline to Cloud Run
+        run: |
+          gcloud run deploy etl-pipeline \
+            --image=${{ steps.image-tag.outputs.registry }}/etl-pipeline:${{ steps.image-tag.outputs.tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --cpu=1 \
+            --memory=1Gi \
+            --timeout=900 \
+            --max-instances=2 \
+            --min-instances=0 \
+            --no-allow-unauthenticated \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }},STORAGE_BACKEND=gcs" \
+            --service-account=${{ secrets.CLOUD_RUN_SA }} \
+            --quiet
+
+      - name: Deploy api-server to Cloud Run
+        run: |
+          gcloud run deploy api-server \
+            --image=${{ steps.image-tag.outputs.registry }}/api-server:${{ steps.image-tag.outputs.tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --cpu=1 \
+            --memory=512Mi \
+            --concurrency=80 \
+            --max-instances=2 \
+            --min-instances=0 \
+            --allow-unauthenticated \
+            --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }}" \
+            --service-account=${{ secrets.CLOUD_RUN_SA }} \
+            --quiet
+
+      # ---- Capture deployed URLs ----
+
+      - name: Get deployed service URLs
+        id: urls
+        run: |
+          echo "## Deployed Services" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for svc in permit-ingester bid-ingester license-scraper etl-pipeline api-server; do
+            URL=$(gcloud run services describe "$svc" \
+              --region=${{ env.GCP_REGION }} \
+              --format="value(status.url)" 2>/dev/null || echo "N/A")
+            echo "- **${svc}**: ${URL}" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit**: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Environment**: \`${{ inputs.environment }}\`" >> "$GITHUB_STEP_SUMMARY"

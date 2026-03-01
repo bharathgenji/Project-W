@@ -1,0 +1,105 @@
+services:
+  firestore-emulator:
+    image: mtlynch/firestore-emulator
+    environment:
+      - FIRESTORE_PROJECT_ID=leadgen-mvp-local
+      - PORT=8681
+    ports:
+      - "8681:8681"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8681"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  permit-ingester:
+    build:
+      context: .
+      dockerfile: services/permit-ingester/Dockerfile
+    env_file: .env
+    environment:
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8681
+      - GOOGLE_CLOUD_PROJECT=leadgen-mvp-local
+      - STORAGE_BACKEND=local
+      - LOCAL_STORAGE_PATH=/data/raw
+      - ETL_PIPELINE_URL=http://etl-pipeline:8080
+    ports:
+      - "8001:8080"
+    volumes:
+      - raw-data:/data/raw
+    depends_on:
+      firestore-emulator:
+        condition: service_healthy
+
+  bid-ingester:
+    build:
+      context: .
+      dockerfile: services/bid-ingester/Dockerfile
+    env_file: .env
+    environment:
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8681
+      - GOOGLE_CLOUD_PROJECT=leadgen-mvp-local
+      - STORAGE_BACKEND=local
+      - LOCAL_STORAGE_PATH=/data/raw
+      - ETL_PIPELINE_URL=http://etl-pipeline:8080
+    ports:
+      - "8002:8080"
+    volumes:
+      - raw-data:/data/raw
+    depends_on:
+      firestore-emulator:
+        condition: service_healthy
+
+  etl-pipeline:
+    build:
+      context: .
+      dockerfile: services/etl-pipeline/Dockerfile
+    env_file: .env
+    environment:
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8681
+      - GOOGLE_CLOUD_PROJECT=leadgen-mvp-local
+      - STORAGE_BACKEND=local
+      - LOCAL_STORAGE_PATH=/data/raw
+    ports:
+      - "8003:8080"
+    volumes:
+      - raw-data:/data/raw
+    depends_on:
+      firestore-emulator:
+        condition: service_healthy
+
+  license-scraper:
+    build:
+      context: .
+      dockerfile: services/license-scraper/Dockerfile
+    env_file: .env
+    environment:
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8681
+      - GOOGLE_CLOUD_PROJECT=leadgen-mvp-local
+      - STORAGE_BACKEND=local
+      - LOCAL_STORAGE_PATH=/data/raw
+      - ETL_PIPELINE_URL=http://etl-pipeline:8080
+    ports:
+      - "8004:8080"
+    volumes:
+      - raw-data:/data/raw
+    depends_on:
+      firestore-emulator:
+        condition: service_healthy
+
+  api-server:
+    build:
+      context: .
+      dockerfile: services/api-server/Dockerfile
+    env_file: .env
+    environment:
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8681
+      - GOOGLE_CLOUD_PROJECT=leadgen-mvp-local
+    ports:
+      - "8000:8080"
+    depends_on:
+      firestore-emulator:
+        condition: service_healthy
+
+volumes:
+  raw-data:

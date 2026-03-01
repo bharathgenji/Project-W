@@ -1,0 +1,30 @@
+services:
+  permit-ingester:
+    volumes:
+      - ./shared:/app/shared
+      - ./services/permit-ingester:/app/services/permit-ingester
+    command: ["uvicorn", "services.permit_ingester.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+
+  bid-ingester:
+    volumes:
+      - ./shared:/app/shared
+      - ./services/bid-ingester:/app/services/bid-ingester
+    command: ["uvicorn", "services.bid_ingester.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+
+  etl-pipeline:
+    volumes:
+      - ./shared:/app/shared
+      - ./services/etl-pipeline:/app/services/etl-pipeline
+    command: ["uvicorn", "services.etl_pipeline.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+
+  license-scraper:
+    volumes:
+      - ./shared:/app/shared
+      - ./services/license-scraper:/app/services/license-scraper
+    command: ["uvicorn", "services.license_scraper.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+
+  api-server:
+    volumes:
+      - ./shared:/app/shared
+      - ./services/api-server:/app/services/api-server
+    command: ["uvicorn", "services.api_server.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]

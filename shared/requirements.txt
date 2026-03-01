@@ -1,0 +1,10 @@
+pydantic>=2.7
+pydantic-settings>=2.3
+google-cloud-firestore>=2.16
+google-cloud-storage>=2.17
+httpx>=0.27
+structlog>=24.2
+python-dateutil>=2.9
+phonenumbers>=8.13
+jellyfish>=1.0
+pyyaml>=6.0

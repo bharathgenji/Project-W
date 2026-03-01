@@ -1,0 +1,8 @@
+services:
+  firestore-emulator:
+    image: mtlynch/firestore-emulator
+    environment:
+      - FIRESTORE_PROJECT_ID=leadgen-mvp-local
+      - PORT=8681
+    ports:
+      - "8681:8681"

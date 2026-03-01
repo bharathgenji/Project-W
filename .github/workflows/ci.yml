@@ -1,0 +1,235 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install linting dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+          pip install -r shared/requirements.txt
+          pip install -r services/permit-ingester/requirements.txt
+          pip install -r services/bid-ingester/requirements.txt
+          pip install -r services/license-scraper/requirements.txt
+          pip install -r services/etl-pipeline/requirements.txt
+          pip install -r services/api-server/requirements.txt
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run ruff format check
+        run: ruff format --check .
+
+      - name: Run mypy type checker
+        run: mypy shared/ services/ --ignore-missing-imports
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install all dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -r shared/requirements.txt
+          pip install -r services/permit-ingester/requirements.txt
+          pip install -r services/bid-ingester/requirements.txt
+          pip install -r services/license-scraper/requirements.txt
+          pip install -r services/etl-pipeline/requirements.txt
+          pip install -r services/api-server/requirements.txt
+
+      - name: Run unit tests with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest tests/unit -v --cov --cov-report=xml -m unit
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      firestore-emulator:
+        image: mtlynch/firestore-emulator
+        env:
+          FIRESTORE_PROJECT_ID: leadgen-mvp-local
+          PORT: 8681
+        ports:
+          - 8681:8681
+        options: >-
+          --health-cmd "curl -f http://localhost:8681 || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install all dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -r shared/requirements.txt
+          pip install -r services/permit-ingester/requirements.txt
+          pip install -r services/bid-ingester/requirements.txt
+          pip install -r services/license-scraper/requirements.txt
+          pip install -r services/etl-pipeline/requirements.txt
+          pip install -r services/api-server/requirements.txt
+
+      - name: Wait for Firestore emulator
+        run: |
+          echo "Waiting for Firestore emulator to be ready..."
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8681 > /dev/null 2>&1; then
+              echo "Firestore emulator is ready."
+              break
+            fi
+            echo "Attempt $i/30: Emulator not ready yet, waiting..."
+            sleep 2
+          done
+          # Final check
+          curl -f http://localhost:8681 || (echo "Firestore emulator failed to start" && exit 1)
+
+      - name: Run integration tests
+        env:
+          FIRESTORE_EMULATOR_HOST: localhost:8681
+          GOOGLE_CLOUD_PROJECT: leadgen-mvp-local
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest tests/integration -v -m integration
+
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build permit-ingester image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/permit-ingester/Dockerfile
+          push: false
+          tags: leadgen/permit-ingester:ci
+          cache-from: type=gha,scope=permit-ingester
+          cache-to: type=gha,mode=max,scope=permit-ingester
+
+      - name: Build bid-ingester image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/bid-ingester/Dockerfile
+          push: false
+          tags: leadgen/bid-ingester:ci
+          cache-from: type=gha,scope=bid-ingester
+          cache-to: type=gha,mode=max,scope=bid-ingester
+
+      - name: Build license-scraper image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/license-scraper/Dockerfile
+          push: false
+          tags: leadgen/license-scraper:ci
+          cache-from: type=gha,scope=license-scraper
+          cache-to: type=gha,mode=max,scope=license-scraper
+
+      - name: Build etl-pipeline image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/etl-pipeline/Dockerfile
+          push: false
+          tags: leadgen/etl-pipeline:ci
+          cache-from: type=gha,scope=etl-pipeline
+          cache-to: type=gha,mode=max,scope=etl-pipeline
+
+      - name: Build api-server image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/api-server/Dockerfile
+          push: false
+          tags: leadgen/api-server:ci
+          cache-from: type=gha,scope=api-server
+          cache-to: type=gha,mode=max,scope=api-server
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: services/api-server/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: services/api-server/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: services/api-server/frontend
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: services/api-server/frontend/dist
+          retention-days: 1

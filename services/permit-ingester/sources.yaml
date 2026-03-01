@@ -1,0 +1,307 @@
+portals:
+  # TIER 1 - Critical (largest cities)
+  - id: nyc
+    domain: data.cityofnewyork.us
+    dataset_id: ipu4-2q9a
+    name: New York City
+    state: NY
+    priority: critical
+    field_map:
+      permit_number: job__
+      permit_type: permit_type
+      work_description: job_description
+      address_street: house__
+      address_city: borough
+      estimated_cost: initial_cost
+      owner_name: "owner_s_first_name"
+      owner_phone: "owner_s_phone__"
+      contractor_name: "applicant_s_first_name"
+      contractor_license: "applicant_license__"
+      status: job_status
+      filed_date: pre__filing_date
+      issued_date: issued_date
+      lat: latitude
+      lng: longitude
+
+  - id: chicago
+    domain: data.cityofchicago.org
+    dataset_id: ydr8-5enu
+    name: Chicago
+    state: IL
+    priority: critical
+    field_map:
+      permit_number: permit_
+      permit_type: permit_type
+      work_description: work_description
+      address_street: street_number
+      address_direction: street_direction
+      address_street_name: street_name
+      address_suffix: suffix
+      estimated_cost: reported_cost
+      contractor_name: contractor_1_name
+      status: permit_status
+      issued_date: issue_date
+      lat: latitude
+      lng: longitude
+
+  - id: los-angeles
+    domain: data.lacity.org
+    dataset_id: yv23-pmwf
+    name: Los Angeles
+    state: CA
+    priority: critical
+    field_map:
+      permit_number: permit_nbr
+      permit_type: permit_type
+      work_description: work_description
+      address_street: address
+      estimated_cost: valuation
+      contractor_name: contractor_name
+      status: status
+      issued_date: issue_date
+      lat: latitude
+      lng: longitude
+
+  - id: houston
+    domain: data.houstontx.gov
+    dataset_id: djnh-at8a
+    name: Houston
+    state: TX
+    priority: critical
+    field_map:
+      permit_number: match_key
+      permit_type: permit_type
+      work_description: project_name
+      address_street: street_no
+      address_street_name: street_name
+      estimated_cost: est_const_cost
+      contractor_name: contractor
+      status: status_current
+      issued_date: approved_date
+      lat: latitude
+      lng: longitude
+
+  - id: san-francisco
+    domain: data.sfgov.org
+    dataset_id: i98e-djp9
+    name: San Francisco
+    state: CA
+    priority: critical
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      work_description: description
+      address_street: street_number
+      address_street_name: street_name
+      estimated_cost: estimated_cost
+      status: status
+      filed_date: filed_date
+      issued_date: issued_date
+
+  # TIER 2 - High Priority
+  - id: austin
+    domain: data.austintexas.gov
+    dataset_id: 3syk-w9eu
+    name: Austin
+    state: TX
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type_desc
+      work_description: work_class
+      address_street: original_address1
+      estimated_cost: project_valuation
+      contractor_name: contractor_company_name
+      status: status_current
+      issued_date: issued_date
+
+  - id: dallas
+    domain: www.dallasopendata.com
+    dataset_id: e7gq-4sah
+    name: Dallas
+    state: TX
+    priority: high
+    field_map:
+      permit_number: permit_num
+      permit_type: permit_type
+      work_description: work_description
+      address_street: address
+      estimated_cost: project_value
+      contractor_name: applicant
+      status: status
+
+  - id: seattle
+    domain: data.seattle.gov
+    dataset_id: 76t5-zmmm
+    name: Seattle
+    state: WA
+    priority: high
+    field_map:
+      permit_number: application_permit_number
+      permit_type: permit_type
+      work_description: description
+      address_street: address
+      estimated_cost: value
+      contractor_name: contractor_name
+      status: status
+      issued_date: issue_date
+      lat: latitude
+      lng: longitude
+
+  - id: san-diego
+    domain: data.sandiegocounty.gov
+    dataset_id: dyzh-7eat
+    name: San Diego County
+    state: CA
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      work_description: description
+      address_street: address
+      estimated_cost: valuation
+      status: status
+
+  - id: denver
+    domain: data.denvergov.org
+    dataset_id: p2dh-wkgq
+    name: Denver
+    state: CO
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      work_description: work_description
+      address_street: address
+      estimated_cost: cost
+      contractor_name: contractor
+      status: status
+
+  - id: portland
+    domain: data.portlandoregon.gov
+    dataset_id: uyux-8gax
+    name: Portland
+    state: OR
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: type
+      work_description: description
+      address_street: address
+      estimated_cost: valuation
+      contractor_name: contractor
+      issued_date: issue_date
+
+  - id: boston
+    domain: data.boston.gov
+    dataset_id: hfbi-6lbg
+    name: Boston
+    state: MA
+    priority: high
+    field_map:
+      permit_number: permitnumber
+      permit_type: permittypedescr
+      work_description: description
+      address_street: address
+      owner_name: applicant
+      status: status
+      issued_date: issued_date
+
+  - id: nashville
+    domain: data.nashville.gov
+    dataset_id: 3h5w-q8b7
+    name: Nashville
+    state: TN
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      work_description: description
+      address_street: address
+      estimated_cost: const_cost
+      status: status
+      issued_date: date_issued
+
+  - id: dc
+    domain: opendata.dc.gov
+    dataset_id: awjx-nebs
+    name: Washington DC
+    state: DC
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      work_description: description
+      address_street: full_address
+      owner_name: owner_name
+      status: status
+      issued_date: issue_date
+
+  - id: miami-dade
+    domain: opendata.miamidade.gov
+    dataset_id: dv5p-i7yv
+    name: Miami-Dade County
+    state: FL
+    priority: high
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      address_street: address
+      estimated_cost: valuation
+      status: status
+
+  # TIER 3 - Medium Priority
+  - id: new-orleans
+    domain: data.nola.gov
+    dataset_id: wc9q-fj3m
+    name: New Orleans
+    state: LA
+    priority: medium
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      address_street: address
+      estimated_cost: project_cost
+      contractor_name: contractor
+      status: status
+
+  - id: kansas-city
+    domain: data.kcmo.org
+    dataset_id: ibhq-vfej
+    name: Kansas City
+    state: MO
+    priority: medium
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      address_street: address
+      estimated_cost: cost
+      contractor_name: contractor
+      status: status
+
+  - id: baltimore
+    domain: data.baltimorecity.gov
+    dataset_id: fqd2-swkr
+    name: Baltimore
+    state: MD
+    priority: medium
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      work_description: description
+      address_street: address
+      contractor_name: contractor
+      status: status
+
+  - id: san-jose
+    domain: data.sanjoseca.gov
+    dataset_id: 6s5y-scdv
+    name: San Jose
+    state: CA
+    priority: medium
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      address_street: address
+      estimated_cost: valuation
+      status: status

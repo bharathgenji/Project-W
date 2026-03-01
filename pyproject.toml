@@ -1,0 +1,38 @@
+[project]
+name = "leadgen-mvp"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests (no external deps)",
+    "integration: Integration tests (requires Firestore emulator)",
+    "e2e: End-to-end browser tests (requires running frontend)",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["shared", "services"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["frontend", "node_modules", "tests"]
+
+[tool.coverage.run]
+source = ["shared", "services"]
+omit = ["tests/*", "*/frontend/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

@@ -1,0 +1,80 @@
+[
+  {
+    "noticeId": "SAM-2026-0001234",
+    "title": "Electrical System Upgrade – VA Medical Center, Houston TX",
+    "description": "Replace and upgrade the electrical distribution system at the Houston VA Medical Center. Work includes installation of new 480V switchgear, emergency generator transfer switches, and LED lighting retrofit across Building A and B. Estimated project duration 18 months.",
+    "fullParentPathName": "DEPARTMENT OF VETERANS AFFAIRS.VETERANS HEALTH ADMINISTRATION",
+    "postedDate": "2026-02-20T00:00:00",
+    "responseDeadLine": "2026-03-20T17:00:00",
+    "type": "o",
+    "naicsCode": "238210",
+    "typeOfSetAside": "SBA",
+    "pointOfContact": [
+      {
+        "fullName": "Patricia Morales",
+        "email": "patricia.morales@va.gov",
+        "phone": "713-791-1414 ext 5200",
+        "type": "primary"
+      }
+    ],
+    "placeOfPerformance": {
+      "city": {"name": "Houston"},
+      "state": {"code": "TX", "name": "Texas"},
+      "zip": "77030"
+    }
+  },
+  {
+    "noticeId": "SAM-2026-0001567",
+    "title": "HVAC Replacement – Federal Courthouse, Denver CO",
+    "description": "Design-build replacement of the heating, ventilation, and air conditioning system at the Byron G. Rogers Federal Courthouse. Includes removal of existing rooftop units, installation of variable refrigerant flow (VRF) system, new ductwork, and building automation system integration.",
+    "fullParentPathName": "GENERAL SERVICES ADMINISTRATION.PUBLIC BUILDINGS SERVICE",
+    "postedDate": "2026-02-18T00:00:00",
+    "responseDeadLine": "2026-04-01T14:00:00",
+    "type": "o",
+    "naicsCode": "238220",
+    "typeOfSetAside": "",
+    "pointOfContact": [
+      {
+        "fullName": "Robert Chen",
+        "email": "robert.chen@gsa.gov",
+        "phone": "303-236-7329",
+        "type": "primary"
+      },
+      {
+        "fullName": "Lisa Johansson",
+        "email": "lisa.johansson@gsa.gov",
+        "phone": "303-236-7400",
+        "type": "secondary"
+      }
+    ],
+    "placeOfPerformance": {
+      "city": {"name": "Denver"},
+      "state": {"code": "CO", "name": "Colorado"},
+      "zip": "80202"
+    }
+  },
+  {
+    "noticeId": "SAM-2026-0001890",
+    "title": "Roof Replacement – U.S. Post Office, Springfield IL",
+    "description": "Remove existing built-up roofing system and replace with TPO single-ply membrane roofing on the historic Springfield Main Post Office. Work includes structural deck repairs, insulation, flashing, and gutter system replacement. Davis-Bacon wages apply.",
+    "fullParentPathName": "UNITED STATES POSTAL SERVICE",
+    "postedDate": "2026-02-15T00:00:00",
+    "responseDeadLine": "2026-03-15T16:00:00",
+    "type": "p",
+    "naicsCode": "238160",
+    "typeOfSetAside": "8A",
+    "pointOfContact": [
+      {
+        "fullName": "Angela Washington",
+        "email": "angela.washington@usps.gov",
+        "phone": "217-788-7200",
+        "type": "primary"
+      }
+    ],
+    "placeOfPerformance": {
+      "city": {"name": "Springfield"},
+      "state": {"code": "IL", "name": "Illinois"},
+      "zip": "62701"
+    }
+  }
+]

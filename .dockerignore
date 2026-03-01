@@ -1,0 +1,16 @@
+.venv/
+venv/
+node_modules/
+.git/
+__pycache__/
+tests/
+.github/
+*.md
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+data/
+.qodo/
