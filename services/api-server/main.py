@@ -118,8 +118,21 @@ async def ws_alerts(websocket: WebSocket, email: str = "") -> None:
         ws_manager.disconnect(email)
 
 
-# ─── Frontend (static React build) ─────────────────────────────────────────────
+# ─── Frontend (static React build + SPA catch-all) ──────────────────────────────
 
 frontend_dist = Path(__file__).parent / "frontend" / "dist"
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    # Serve static assets (JS/CSS/images) under /assets
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+    # SPA catch-all: serve index.html for all non-API routes so React Router works
+    from fastapi.responses import FileResponse
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str) -> FileResponse:
+        # If it looks like a static file, try to serve it
+        candidate = frontend_dist / full_path
+        if candidate.is_file():
+            return FileResponse(str(candidate))
+        # Otherwise serve index.html (React Router handles the path)
+        return FileResponse(str(frontend_dist / "index.html"))
