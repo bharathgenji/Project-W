@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { formatDistanceToNow } from 'date-fns'
-import { MapPin, Phone, Clock, ChevronRight, Bookmark } from 'lucide-react'
+import { MapPin, Clock, ChevronRight, Bookmark, DollarSign } from 'lucide-react'
 
 function fmtVal(v) {
   if (!v && v !== 0) return '—'
@@ -15,26 +15,40 @@ function relDate(s) {
   try { return formatDistanceToNow(new Date(s), { addSuffix: true }) } catch { return null }
 }
 
-const TRADE_STYLE = (t) => {
-  const m = {
-    ELECTRICAL:      'bg-amber-50 text-amber-700',
-    PLUMBING:        'bg-sky-50 text-sky-700',
-    HVAC:            'bg-teal-50 text-teal-700',
-    ROOFING:         'bg-orange-50 text-orange-700',
-    CONCRETE:        'bg-stone-50 text-stone-600',
-    GENERAL:         'bg-violet-50 text-violet-700',
-    FIRE_PROTECTION: 'bg-red-50 text-red-700',
-  }
-  return m[t] ?? 'bg-gray-50 text-gray-600'
+// Score ring color — single accent, no rainbow
+function scoreColor(s) {
+  if (s >= 70) return '#1E3A5F'   // navy — hot
+  if (s >= 50) return '#3B6EA8'   // medium blue
+  return '#9CA3AF'                // gray — low
 }
 
-const scoreLabel = s => s >= 80 ? 'Hot' : s >= 60 ? 'Good' : s >= 40 ? 'Fair' : 'Low'
-const scoreStyle = s =>
-  s >= 80 ? 'text-emerald-600' : s >= 60 ? 'text-blue-600' : s >= 40 ? 'text-amber-600' : 'text-gray-400'
+function ScoreBadge({ score, compact }) {
+  const color = scoreColor(score)
+  const label = score >= 70 ? 'Hot' : score >= 50 ? 'Good' : score >= 30 ? 'Fair' : 'Low'
+  return (
+    <div className="flex flex-col items-center shrink-0">
+      <svg width={compact ? 30 : 36} height={compact ? 30 : 36} viewBox="0 0 36 36">
+        <circle cx="18" cy="18" r="15" fill="none" stroke="#F3F4F6" strokeWidth="3" />
+        <circle
+          cx="18" cy="18" r="15" fill="none"
+          stroke={color} strokeWidth="3"
+          strokeDasharray={`${(score / 100) * 94.2} 94.2`}
+          strokeLinecap="round"
+          transform="rotate(-90 18 18)"
+        />
+        <text x="18" y="22" textAnchor="middle" fontSize={compact ? "9" : "10"} fontWeight="700" fill="#111827">
+          {score}
+        </text>
+      </svg>
+      {!compact && <span className="text-[9px] text-gray-400 mt-0.5 font-medium">{label}</span>}
+    </div>
+  )
+}
 
 export default function LeadCard({ lead, compact = false }) {
-  const owner = lead.owner || {}
   const score = lead.score || 0
+  const trade = lead.trade || 'GENERAL'
+  const tradeLabel = trade.replace(/_/g, ' ')
 
   const handleSave = async (e) => {
     e.preventDefault(); e.stopPropagation()
@@ -51,52 +65,77 @@ export default function LeadCard({ lead, compact = false }) {
   }
 
   return (
-    <Link to={`/leads/${lead.id}`}
-      className={clsx('group block rounded-card bg-white shadow-card hover:shadow-card-hover transition-shadow', compact ? 'p-3' : 'p-4')}>
-      {/* Top */}
+    <Link
+      to={`/leads/${lead.id}`}
+      className={clsx(
+        'group block rounded-card bg-white shadow-card hover:shadow-card-hover transition-shadow border border-gray-100',
+        compact ? 'p-3' : 'p-4'
+      )}
+    >
+      {/* Top row: badges + score ring */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={clsx('inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium', TRADE_STYLE(lead.trade))}>
-            {lead.trade || 'GENERAL'}
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {/* Trade badge — neutral, no color coding */}
+          <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase bg-primary-50 text-primary-700">
+            {tradeLabel}
           </span>
-          <span className="inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium bg-gray-50 text-gray-400 capitalize">
+          <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium text-gray-400 bg-gray-50 capitalize">
             {lead.type || 'permit'}
           </span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={clsx('text-xs font-bold tabular-nums', scoreStyle(score))}>
-            {score} <span className="font-normal text-gray-400 text-[10px]">{scoreLabel(score)}</span>
-          </span>
-          <button onClick={handleSave} className="text-gray-200 hover:text-primary-700 transition-colors">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={handleSave}
+            className="text-gray-200 hover:text-primary-700 transition-colors p-0.5"
+            title="Save lead"
+          >
             <Bookmark className="h-3.5 w-3.5" />
           </button>
+          <ScoreBadge score={score} compact={compact} />
         </div>
       </div>
 
       {/* Title */}
-      <p className={clsx('font-medium text-gray-900 group-hover:text-primary-700 line-clamp-2', compact ? 'text-xs' : 'text-sm')}>
+      <p className={clsx(
+        'font-medium text-gray-900 group-hover:text-primary-700 line-clamp-2 transition-colors',
+        compact ? 'text-xs' : 'text-sm'
+      )}>
         {lead.title}
       </p>
 
       {/* Value */}
-      <p className={clsx('font-bold text-gray-900 mt-1.5', compact ? 'text-sm' : 'text-base')}>
-        {fmtVal(lead.value)}
-      </p>
+      {lead.value > 0 && (
+        <div className="flex items-center gap-1 mt-1.5">
+          <DollarSign className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+          <span className={clsx('font-bold text-gray-900', compact ? 'text-sm' : 'text-base')}>
+            {fmtVal(lead.value)}
+          </span>
+        </div>
+      )}
 
       {!compact && (
         <div className="mt-2 space-y-1 text-xs text-gray-400">
-          {lead.addr && <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3 shrink-0" /><span className="truncate">{lead.addr}</span></div>}
-          {owner.p && <a href={`tel:${owner.p}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 hover:text-primary-700"><Phone className="h-3 w-3 shrink-0" />{owner.p}</a>}
-          {lead.posted && <div className="flex items-center gap-1.5"><Clock className="h-3 w-3 shrink-0" />{relDate(lead.posted)}</div>}
+          {lead.addr && (
+            <div className="flex items-center gap-1.5">
+              <MapPin className="h-3 w-3 shrink-0" />
+              <span className="truncate">{lead.addr}</span>
+            </div>
+          )}
+          {lead.posted && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-3 w-3 shrink-0" />
+              <span>{relDate(lead.posted)}</span>
+            </div>
+          )}
         </div>
       )}
 
       {!compact && (
         <div className="mt-3 flex items-center justify-between border-t border-gray-50 pt-2.5">
           <span className="text-[11px] text-gray-400 truncate max-w-[65%]">
-            {lead.gc?.n ? `GC: ${lead.gc.n}` : lead.src || '—'}
+            {lead.gc?.n ? `GC: ${lead.gc.n}` : (lead.city ? `${lead.city}` : lead.src || '—')}
           </span>
-          <span className="text-xs text-primary-700 font-medium flex items-center gap-0.5 group-hover:gap-1 transition-all">
+          <span className="text-xs text-primary-700 font-medium flex items-center gap-0.5 group-hover:gap-1.5 transition-all">
             View <ChevronRight className="h-3.5 w-3.5" />
           </span>
         </div>

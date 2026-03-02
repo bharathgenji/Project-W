@@ -44,7 +44,7 @@ def dashboard_stats(
     city_counter: Counter[str] = Counter()
 
     # Aggregate lead stats
-    lead_docs = db.leads().limit(5000).stream()
+    lead_docs = db.leads().limit(20000).stream()
     for doc in lead_docs:
         data = doc.to_dict()
         stats["total_leads"] += 1
@@ -98,6 +98,9 @@ def dashboard_stats(
             "dallas":       "Dallas, TX",
             "san-antonio":  "San Antonio, TX",
             "boston":       "Boston, MA",
+            "nashville":    "Nashville, TN",
+            "portland":     "Portland, OR",
+            "portland-residential": "Portland, OR",
             "usaspending":  "Federal (Various)",
             "sam":          "Federal (Various)",
         }

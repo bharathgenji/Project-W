@@ -25,11 +25,8 @@ function relDate(s) {
   try { return formatDistanceToNow(new Date(s), { addSuffix: true }) } catch { return null }
 }
 
-const TRADE_BADGE = {
-  ELECTRICAL:'bg-amber-100 text-amber-700', PLUMBING:'bg-blue-100 text-blue-700',
-  HVAC:'bg-cyan-100 text-cyan-700', ROOFING:'bg-orange-100 text-orange-700',
-  CONCRETE:'bg-gray-100 text-gray-700', GENERAL:'bg-violet-100 text-violet-700',
-}
+// Uniform trade badge — no per-trade color coding
+const TRADE_BADGE = () => 'bg-primary-50 text-primary-700'
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 function Section({ title, icon: Icon, children }) {
@@ -57,8 +54,8 @@ function DetailRow({ label, value, accent }) {
 
 // ── Score ring (SVG) ──────────────────────────────────────────────────────────
 function ScoreGauge({ score }) {
-  const color = score >= 80 ? '#10b981' : score >= 60 ? '#3b82f6' : score >= 40 ? '#f59e0b' : '#9ca3af'
-  const label = score >= 80 ? 'Hot' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Low'
+  const color = score >= 70 ? '#1E3A5F' : score >= 50 ? '#3B6EA8' : '#9CA3AF'
+  const label = score >= 70 ? 'Hot' : score >= 50 ? 'Good' : score >= 30 ? 'Fair' : 'Low'
   const r = 26; const circ = 2 * Math.PI * r; const dash = (score / 100) * circ
   return (
     <div className="flex flex-col items-center">
@@ -67,9 +64,9 @@ function ScoreGauge({ score }) {
         <circle cx="36" cy="36" r={r} fill="none" stroke={color} strokeWidth="7"
           strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
           transform="rotate(-90 36 36)" />
-        <text x="36" y="40" textAnchor="middle" fontSize="15" fontWeight="700" fill={color}>{score}</text>
+        <text x="36" y="40" textAnchor="middle" fontSize="15" fontWeight="700" fill="#111827">{score}</text>
       </svg>
-      <span className="text-xs font-semibold mt-0.5" style={{ color }}>{label}</span>
+      <span className="text-xs font-semibold mt-0.5 text-gray-500">{label}</span>
     </div>
   )
 }
@@ -85,13 +82,13 @@ function AIPanel({ ai }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <p className="text-xs text-gray-400 mb-1">Project Type</p>
-          <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700">
+          <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium bg-primary-50 text-primary-700">
             {PT_LABEL[ai.project_type] || ai.project_type}
           </span>
         </div>
         <div>
           <p className="text-xs text-gray-400 mb-1">Owner Type</p>
-          <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-700">
+          <span className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-700">
             {OT_LABEL[ai.owner_type] || ai.owner_type}
           </span>
         </div>
@@ -224,14 +221,14 @@ export default function LeadDetail() {
         <div className="flex flex-col sm:flex-row sm:items-start gap-5">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className={clsx('inline-flex items-center rounded px-2 py-0.5 text-xs font-medium', TRADE_BADGE[lead.trade] ?? 'bg-gray-100 text-gray-600')}>
-                {lead.trade}
+              <span className={clsx('inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', TRADE_BADGE())}>
+                {(lead.trade || 'GENERAL').replace(/_/g, ' ')}
               </span>
               <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 capitalize">
                 {lead.type || 'permit'}
               </span>
               {lead.deadline && (
-                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium bg-red-50 text-red-600 border border-red-100">
+                <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600">
                   <Calendar className="h-3 w-3" /> Due {relDate(lead.deadline)}
                 </span>
               )}

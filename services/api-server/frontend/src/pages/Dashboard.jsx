@@ -19,18 +19,8 @@ function relDate(s) {
   if (!s) return null
   try { return formatDistanceToNow(new Date(s), { addSuffix: true }) } catch { return null }
 }
-const TRADE_COLOR = (t) => {
-  const map = {
-    ELECTRICAL:'bg-amber-50 text-amber-700 border border-amber-100',
-    PLUMBING:  'bg-sky-50 text-sky-700 border border-sky-100',
-    HVAC:      'bg-teal-50 text-teal-700 border border-teal-100',
-    ROOFING:   'bg-orange-50 text-orange-700 border border-orange-100',
-    CONCRETE:  'bg-stone-50 text-stone-600 border border-stone-100',
-    GENERAL:   'bg-violet-50 text-violet-700 border border-violet-100',
-    FIRE_PROTECTION: 'bg-red-50 text-red-700 border border-red-100',
-  }
-  return map[t] ?? 'bg-gray-50 text-gray-600 border border-gray-100'
-}
+// Uniform trade badge — PlanLedger navy, no per-trade colors
+const TRADE_COLOR = () => 'bg-primary-50 text-primary-700'
 
 // ── Stat card — number-first, no colored icon boxes ───────────────────────────
 function StatCard({ label, value, sub, accent }) {
@@ -66,12 +56,12 @@ function LeadRow({ lead }) {
           </p>
         )}
       </div>
-      <span className={clsx('inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-medium truncate', TRADE_COLOR(lead.trade))}>
-        {lead.trade}
+      <span className={clsx('inline-flex items-center justify-center rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide truncate', TRADE_COLOR())}>
+        {(lead.trade || 'GENERAL').replace(/_/g, ' ')}
       </span>
       <span className="text-sm font-semibold text-gray-900 text-right">{fmtVal(lead.value)}</span>
       <span className={clsx('text-xs font-bold text-right tabular-nums',
-        lead.score >= 70 ? 'text-emerald-600' : lead.score >= 45 ? 'text-amber-600' : 'text-gray-400')}>
+        lead.score >= 70 ? 'text-primary-700' : lead.score >= 45 ? 'text-gray-700' : 'text-gray-400')}>
         {lead.score ?? '—'}
       </span>
       <span className="text-xs text-gray-400 text-right">{relDate(lead.posted) || '—'}</span>
@@ -103,12 +93,12 @@ function IngestBar({ status, onRefresh }) {
         <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
         <p className="mt-0.5 text-sm text-gray-400">
           {running ? (
-            <span className="flex items-center gap-1.5 text-blue-600">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Fetching live data from Socrata + SAM.gov…
+            <span className="flex items-center gap-1.5 text-primary-700">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Fetching live data from Socrata + USASpending…
             </span>
           ) : lastRun ? (
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary-400" />
               Updated {formatDistanceToNow(new Date(lastRun), { addSuffix: true })} · {format(new Date(lastRun), 'MMM d, h:mm a')}
             </span>
           ) : 'No data ingested yet — click Refresh to pull live permits.'}

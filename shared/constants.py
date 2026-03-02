@@ -9,7 +9,7 @@ TRADE_KEYWORDS: dict[str, list[str]] = {
         "fire alarm", "security system", "camera", "cctv",
     ],
     "PLUMBING": [
-        "plumbing", "plumb", "pipe", "piping", "water heater", "sewer", "drain",
+        "plumbing", "plumb", "pipe", "pipes", "piping", "water heater", "sewer", "drain",
         "drainage", "fixture", "backflow", "irrigation", "faucet", "toilet",
         "water line", "gas line", "water main", "sanitary", "storm drain",
         "grease trap", "interceptor", "water service", "hydrant",
@@ -34,6 +34,7 @@ TRADE_KEYWORDS: dict[str, list[str]] = {
         "framing", "structural", "carpentry", "lumber", "timber", "truss", "joist",
         "beam", "column", "shear wall", "wood frame", "metal stud", "light gauge",
         "deck", "balcony", "staircase", "stair",
+        "porch", "pergola", "gazebo", "carport", "shed", "accessory structure",
     ],
     "DRYWALL": [
         "drywall", "gypsum", "plaster", "insulation", "acoustical", "stucco",
@@ -52,10 +53,28 @@ TRADE_KEYWORDS: dict[str, list[str]] = {
         "tenant improvement", "alteration", "build-out", "buildout", "fit-out",
         "commercial build", "residential build", "erect", "construct",
         "self cert", "cbc", "ibc", "adc",
+        "new single family", "new residential", "single family", "single-family",
+        "multifamily", "multi-family", "multi family",
+        "mixed use", "apartment", "new build", "rebuild", "reconstruction",
+        "legalize", "comply", "inspection", "final inspection",
+        # ADU / accessory structures
+        "adu", "accessory dwelling", "dwelling unit", "junior adu", "jadu",
+        "accessory structure", "detached accessory",
+        # Wildfire / disaster rebuild
+        "wildfire rebuild", "fire rebuild", "disaster rebuild",
+        # Residential new builds
+        "new residence", "new home", "new house", "new dwelling",
+        "sfr", "single family residence", "single family dwelling",
+        "townhouse", "townhome", "duplex", "triplex", "fourplex",
+        # Commercial
+        "office building", "retail", "warehouse", "industrial", "shell building",
+        "hotel", "motel", "school", "hospital", "clinic", "church",
+        # Affordable housing
+        "affordable housing", "affordable units", "low income", "subsidized",
     ],
     "DEMOLITION": [
         "demolition", "demo", "abatement", "asbestos", "removal", "teardown",
-        "deconstruction", "strip out",
+        "deconstruction", "strip out", "raze",
     ],
     "FIRE_PROTECTION": [
         "fire sprinkler", "sprinkler system", "fire alarm", "fire suppression",
@@ -72,6 +91,11 @@ TRADE_KEYWORDS: dict[str, list[str]] = {
     "SITE_WORK": [
         "grading", "excavation", "site work", "landscaping", "paving", "parking lot",
         "underground utility", "utility trench", "erosion control",
+    ],
+    "SIGNAGE": [
+        "sign", "signage", "illuminated", "billboard", "banner", "channel letter",
+        "blade sign", "monument sign", "pylon sign", "fascia sign", "raceway",
+        "led sign", "neon sign", "business sign", "wall sign", "tenant sign",
     ],
 }
 
@@ -125,9 +149,9 @@ PERMIT_TYPE_ALIASES: dict[str, str] = {
     "demolition": "DEMOLITION",
     "hvac": "MECHANICAL",
     "fire": "MECHANICAL",
-    "sign": "OTHER",
-    "grading": "OTHER",
-    "fence": "OTHER",
+    "sign": "SIGNAGE",
+    "grading": "SITE_WORK",
+    "fence": "GENERAL",
 }
 
 SET_ASIDE_TYPES: list[str] = [

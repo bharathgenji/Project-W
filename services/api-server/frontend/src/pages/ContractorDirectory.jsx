@@ -208,14 +208,14 @@ function ContractorCard({ contractor }) {
     .join('')
     .toUpperCase();
 
-  // Color for avatar based on first letter
+  // Avatar colors — navy palette only, no rainbow
   const avatarColors = [
-    'bg-primary-100 text-primary-700',
-    'bg-emerald-100 text-emerald-700',
-    'bg-amber-100 text-amber-700',
-    'bg-cyan-100 text-cyan-700',
-    'bg-rose-100 text-rose-700',
-    'bg-violet-100 text-violet-700',
+    'bg-primary-50 text-primary-700',
+    'bg-primary-100 text-primary-800',
+    'bg-gray-100 text-gray-700',
+    'bg-gray-200 text-gray-800',
+    'bg-primary-200 text-primary-900',
+    'bg-gray-50 text-primary-700',
   ];
   const colorIndex = (contractor.name || '').charCodeAt(0) % avatarColors.length;
 

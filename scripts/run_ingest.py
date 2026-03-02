@@ -360,6 +360,29 @@ async def main(args: argparse.Namespace) -> None:
     except ImportError as e:
         print(f"  ⚠️  CKAN client unavailable: {e}")
 
+    # ── Step 2c: ArcGIS Permits (Nashville, …) ────────────────────────────────
+    section("Step 2c — ArcGIS Permit Ingestion (Nashville)")
+    try:
+        from services.permit_ingester.arcgis_client import fetch_arcgis_permits
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        arcgis_records = await fetch_arcgis_permits(days=args.days, max_per_source=args.max_per_portal)
+        if arcgis_records:
+            # Group by portal_id for separate files
+            by_portal: dict[str, list] = {}
+            for rec in arcgis_records:
+                pid = rec.pop("src_portal", "arcgis")
+                by_portal.setdefault(pid, []).append(rec)
+            for pid, recs in by_portal.items():
+                rel_path = f"permits/{today}/{pid}.jsonl"
+                storage.write_jsonl(rel_path, recs)
+                all_storage_paths.append(("permit", rel_path))
+                total_raw_permits += len(recs)
+                print(f"  ✓ {pid}: {len(recs)} permits")
+        else:
+            print("  0 records from ArcGIS sources")
+    except Exception as e:
+        print(f"  ⚠️  ArcGIS client error: {e}")
+
     # ── Step 3: Bids ───────────────────────────────────────────────────────────
     section("Step 3 — Bid Ingestion (SAM.gov + USASpending)")
     bid_results, bid_paths = await ingest_bids_direct(

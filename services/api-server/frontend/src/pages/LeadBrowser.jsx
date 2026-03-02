@@ -29,15 +29,14 @@ const CITIES = [
   { label: 'Dallas, TX',        src: 'dallas' },
   { label: 'San Antonio, TX',   src: 'san-antonio' },
   { label: 'Boston, MA',        src: 'boston' },
-  { label: 'Federal (SAM.gov)', src: 'sam' },
-  { label: 'Federal (Awards)',  src: 'usaspending' },
+  { label: 'Nashville, TN',    src: 'nashville' },
+  { label: 'Portland, OR',     src: 'portland' },
+  { label: 'Federal (SAM.gov)',src: 'sam' },
+  { label: 'Federal (Awards)', src: 'usaspending' },
 ]
-const TRADE_BADGE = {
-  ELECTRICAL:'bg-amber-100 text-amber-700', PLUMBING:'bg-blue-100 text-blue-700',
-  HVAC:'bg-cyan-100 text-cyan-700', ROOFING:'bg-orange-100 text-orange-700',
-  CONCRETE:'bg-gray-100 text-gray-700', GENERAL:'bg-violet-100 text-violet-700',
-}
-const SCORE_COLOR = s => s >= 80 ? 'text-emerald-600' : s >= 60 ? 'text-blue-600' : s >= 40 ? 'text-amber-600' : 'text-gray-400'
+// Uniform trade badge — no per-trade color coding
+const tradeBadge = () => 'bg-primary-50 text-primary-700'
+const SCORE_COLOR = s => s >= 70 ? 'text-primary-700 font-bold' : s >= 50 ? 'text-gray-700 font-semibold' : 'text-gray-400'
 
 // ── Table row ─────────────────────────────────────────────────────────────────
 function LeadTableRow({ lead }) {
@@ -54,8 +53,8 @@ function LeadTableRow({ lead }) {
         </Link>
       </td>
       <td className="py-3 px-3">
-        <span className={clsx('inline-flex items-center rounded px-2 py-0.5 text-xs font-medium', TRADE_BADGE[lead.trade] ?? 'bg-gray-100 text-gray-600')}>
-          {lead.trade}
+        <span className={clsx('inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', tradeBadge())}>
+          {(lead.trade || 'GENERAL').replace(/_/g, ' ')}
         </span>
       </td>
       <td className="py-3 px-3">
