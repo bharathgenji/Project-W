@@ -53,7 +53,9 @@ def _sort_results(results: list[dict], sort_by: str) -> list[dict]:
 
 @router.get("")
 def list_leads(
+    q: str | None = None,
     trade: str | None = None,
+    src: str | None = None,
     state: str | None = None,
     city: str | None = None,
     zip_code: str | None = Query(None, alias="zip"),
@@ -68,7 +70,7 @@ def list_leads(
     cache: Any = Depends(get_cache),
 ) -> dict:
     """List leads with optional filters. Returns paginated envelope with total count."""
-    cache_key = f"leads:{trade}:{state}:{city}:{zip_code}:{min_value}:{max_value}:{status}:{sort_by}"
+    cache_key = f"leads:{q}:{trade}:{src}:{state}:{city}:{zip_code}:{min_value}:{max_value}:{status}:{sort_by}"
     cached = cache.get(cache_key)
 
     if cached is None:
@@ -82,6 +84,19 @@ def list_leads(
         fetch_limit = max(5000, offset + limit + 500)
         docs = query.limit(fetch_limit).stream()
         results = _apply_filters(docs, state, city, zip_code, min_value, max_value)
+
+        # src filter (portal prefix e.g. "chicago", "los-angeles")
+        if src:
+            results = [r for r in results if r.get("src", "").startswith(src)]
+
+        # full-text search on title + addr + work_description
+        if q:
+            ql = q.lower()
+            results = [r for r in results if
+                       ql in (r.get("title") or "").lower() or
+                       ql in (r.get("addr") or "").lower() or
+                       ql in (r.get("work_description") or "").lower()]
+
         results = _sort_results(results, sort_by)
         cache.set(cache_key, results)
     else:

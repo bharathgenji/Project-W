@@ -20,7 +20,9 @@ async function request(url, options = {}) {
 // --------------- Leads ---------------
 
 export function getLeads({
+  q,
   trade,
+  src,
   state,
   city,
   zip,
@@ -33,7 +35,9 @@ export function getLeads({
   offset = 0,
 } = {}) {
   const params = new URLSearchParams();
+  if (q) params.set('q', q);
   if (trade) params.set('trade', trade);
+  if (src) params.set('src', src);
   if (state) params.set('state', state);
   if (city) params.set('city', city);
   if (zip) params.set('zip', zip);

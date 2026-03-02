@@ -16,7 +16,22 @@ function relDate(s) {
   try { return formatDistanceToNow(new Date(s), { addSuffix: true }) } catch { return s }
 }
 
-const TRADES = ['ELECTRICAL','PLUMBING','HVAC','ROOFING','CONCRETE','GENERAL']
+const TRADES = ['ELECTRICAL','PLUMBING','HVAC','ROOFING','CONCRETE','FRAMING','DRYWALL','PAINTING','FLOORING','GENERAL','DEMOLITION','FIRE_PROTECTION','SOLAR','SITE_WORK']
+
+const CITIES = [
+  { label: 'Chicago, IL',       src: 'chicago' },
+  { label: 'Austin, TX',        src: 'austin' },
+  { label: 'San Francisco, CA', src: 'sf' },
+  { label: 'New York City, NY', src: 'nyc' },
+  { label: 'Los Angeles, CA',   src: 'los-angeles' },
+  { label: 'Seattle, WA',       src: 'seattle' },
+  { label: 'New Orleans, LA',   src: 'new-orleans' },
+  { label: 'Dallas, TX',        src: 'dallas' },
+  { label: 'San Antonio, TX',   src: 'san-antonio' },
+  { label: 'Boston, MA',        src: 'boston' },
+  { label: 'Federal (SAM.gov)', src: 'sam' },
+  { label: 'Federal (Awards)',  src: 'usaspending' },
+]
 const TRADE_BADGE = {
   ELECTRICAL:'bg-amber-100 text-amber-700', PLUMBING:'bg-blue-100 text-blue-700',
   HVAC:'bg-cyan-100 text-cyan-700', ROOFING:'bg-orange-100 text-orange-700',
@@ -104,6 +119,17 @@ function FilterPanel({ filters, onChange, onClose }) {
           </div>
         </div>
 
+        {/* City */}
+        <div className="mb-4">
+          <label className="mb-1.5 block text-xs font-medium text-gray-500 uppercase tracking-wide">City</label>
+          <select value={filters.src || ''}
+            onChange={e => onChange('src', e.target.value)}
+            className="input-base text-xs py-1.5">
+            <option value="">All cities</option>
+            {CITIES.map(c => <option key={c.src} value={c.src}>{c.label}</option>)}
+          </select>
+        </div>
+
         {/* Sort */}
         <div>
           <label className="mb-1.5 block text-xs font-medium text-gray-500 uppercase tracking-wide">Sort by</label>
@@ -117,7 +143,7 @@ function FilterPanel({ filters, onChange, onClose }) {
         </div>
 
         {/* Clear */}
-        {(filters.trades?.length || filters.type || filters.sort_by !== 'score') && (
+        {(filters.trades?.length || filters.type || filters.src || filters.sort_by !== 'score') && (
           <button onClick={() => onChange('_reset')} className="mt-3 text-xs text-secondary hover:underline">
             Clear all filters
           </button>
@@ -143,7 +169,8 @@ export default function LeadBrowser() {
     setLoading(true)
     try {
       const params = { limit: PAGE_SIZE, offset: page * PAGE_SIZE, sort_by: filters.sort_by || 'score' }
-      if (search) params.query = search
+      if (search) params.q = search
+      if (filters.src) params.src = filters.src
       if (filters.type) params.type = filters.type
       if (filters.trades?.length === 1) params.trade = filters.trades[0]
       const env = await getLeads(params)
@@ -156,13 +183,13 @@ export default function LeadBrowser() {
   useEffect(() => { fetchLeads() }, [fetchLeads])
 
   const handleFilter = (key, val) => {
-    if (key === '_reset') { setFilters({ trades: [], type: '', sort_by: 'score' }); setPage(0); return }
+    if (key === '_reset') { setFilters({ trades: [], type: '', src: '', sort_by: 'score' }); setPage(0); return }
     setFilters(f => ({ ...f, [key]: val }))
     setPage(0)
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
-  const activeFilterCount = (filters.trades?.length || 0) + (filters.type ? 1 : 0)
+  const activeFilterCount = (filters.trades?.length || 0) + (filters.type ? 1 : 0) + (filters.src ? 1 : 0)
 
   return (
     <div className="space-y-4">
