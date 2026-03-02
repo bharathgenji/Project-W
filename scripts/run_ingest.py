@@ -337,6 +337,29 @@ async def main(args: argparse.Namespace) -> None:
     total_raw_permits = sum(v for v in permit_results.values() if v > 0)
     ok(f"Raw permits fetched: {total_raw_permits} across {len([v for v in permit_results.values() if v > 0])} cities")
 
+    # ── Step 2b: CKAN Permits (San Antonio, Boston) ────────────────────────────
+    section("Step 2b — CKAN Permit Ingestion (San Antonio, Boston)")
+    try:
+        from services.permit_ingester.ckan_client import CKAN_SOURCES, fetch_ckan_permits
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        for ckan_src in CKAN_SOURCES:
+            city_id = ckan_src["id"]
+            print(f"  📡 {city_id} ({ckan_src['base_url']})...", end=" ", flush=True)
+            try:
+                records = await fetch_ckan_permits(ckan_src, days_back=args.days, max_records=args.max_per_portal)
+                if records:
+                    rel_path = f"permits/{today}/{city_id}.jsonl"
+                    storage.write_jsonl(rel_path, records)
+                    all_storage_paths.append(("permit", rel_path))
+                    total_raw_permits += len(records)
+                    print(f"{len(records)} permits ✓")
+                else:
+                    print("0 records")
+            except Exception as e:
+                print(f"error: {e}")
+    except ImportError as e:
+        print(f"  ⚠️  CKAN client unavailable: {e}")
+
     # ── Step 3: Bids ───────────────────────────────────────────────────────────
     section("Step 3 — Bid Ingestion (SAM.gov + USASpending)")
     bid_results, bid_paths = await ingest_bids_direct(

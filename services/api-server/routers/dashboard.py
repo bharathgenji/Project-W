@@ -87,13 +87,19 @@ def dashboard_stats(
 
         # City for hot markets — map src portal prefix to real city name
         _PORTAL_CITY = {
-            "chicago": "Chicago, IL",
-            "austin": "Austin, TX",
-            "sf": "San Francisco, CA",
-            "nyc": "New York City, NY",
-            "san-diego": "San Diego, CA",
-            "usaspending": "Federal (Various)",
-            "sam": "Federal (Various)",
+            "chicago":      "Chicago, IL",
+            "austin":       "Austin, TX",
+            "sf":           "San Francisco, CA",
+            "nyc":          "New York City, NY",
+            "san-diego":    "San Diego, CA",
+            "los-angeles":  "Los Angeles, CA",
+            "seattle":      "Seattle, WA",
+            "new-orleans":  "New Orleans, LA",
+            "dallas":       "Dallas, TX",
+            "san-antonio":  "San Antonio, TX",
+            "boston":       "Boston, MA",
+            "usaspending":  "Federal (Various)",
+            "sam":          "Federal (Various)",
         }
         src = data.get("src", "")
         city = ""

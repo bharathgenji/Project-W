@@ -103,14 +103,89 @@ portals:
       status: status
       issued_date: issued_date
 
+  # ── TIER 2 — Verified live, expanded cities (tested March 2026) ──────────────
+
+  - id: los-angeles
+    domain: data.lacity.org
+    dataset_id: pi9x-tg5x        # Building Permits Issued 2020-Present
+    name: Los Angeles
+    state: CA
+    priority: high
+    field_map:
+      permit_number: permit_nbr
+      permit_type: permit_type
+      work_description: work_desc
+      address_street: primary_address
+      address_city: city
+      estimated_cost: valuation
+      status: status_desc
+      issued_date: issue_date
+      lat: lat
+      lng: lon
+
+  - id: seattle
+    domain: data.seattle.gov
+    dataset_id: 76t5-zqzr        # BLDS-standard building permits
+    name: Seattle
+    state: WA
+    priority: high
+    field_map:
+      permit_number: permitnum
+      permit_type: permittypemapped
+      work_description: description
+      address_street: originaladdress1
+      address_city: originalcity
+      address_state: originalstate
+      address_zip: originalzip
+      estimated_cost: estprojectcost
+      status: statuscurrent
+      issued_date: issueddate
+      lat: latitude
+      lng: longitude
+
+  - id: new-orleans
+    domain: data.nola.gov
+    dataset_id: 72f9-bi28        # BLDS-standard building permits
+    name: New Orleans
+    state: LA
+    priority: high
+    field_map:
+      permit_number: permitnum
+      permit_type: permittypemapped
+      work_description: workclassmapped
+      address_street: originaladdress1
+      address_city: originalcity
+      address_state: originalstate
+      address_zip: originalzip
+      estimated_cost: estprojectcost
+      status: statuscurrentmapped
+      issued_date: issuedate
+      lat: latitude
+      lng: longitude
+
+  - id: dallas
+    domain: www.dallasopendata.com
+    dataset_id: e7gq-4sah
+    name: Dallas
+    state: TX
+    priority: medium
+    date_format: mdy             # dates stored as MM/DD/YY — sort+limit only
+    field_map:
+      permit_number: permit_number
+      permit_type: permit_type
+      work_description: work_description
+      address_street: street_address
+      address_zip: zip_code
+      estimated_cost: value
+      contractor_name: contractor
+      issued_date: issued_date
+
   # ── Status of other major portals ─────────────────────────────────────────────
-  # Houston   data.houstontx.gov/djnh-at8a     — 404 (dataset moved)
-  # LA        data.lacity.org/yv23-pmwf        — 403 (requires app token registration)
-  # Seattle   data.seattle.gov/76t5-zmmm        — 404 (migrated to new dataset)
-  # Boston    data.boston.gov/hfbi-6lbg         — 404 (migrated)
   # Nashville data.nashville.gov/3h5w-q8b7      — ArcGIS Hub redirect, not SODA-compatible
-  # Dallas    www.dallasopendata.com/e7gq-4sah  — data only through 2019, stale
-  # DC        opendata.dc.gov/awjx-nebs          — redirect, investigating
-  # Miami     opendata.miamidade.gov/dv5p-i7yv  — redirect, investigating
-  # Denver    data.denvergov.org/p2dh-wkgq       — redirect, investigating
-  # Portland  data.portlandoregon.gov/uyux-8gax — DNS failure
+  # Raleigh   data.raleighnc.gov/b9nv-68kk      — ArcGIS Hub redirect, not SODA-compatible
+  # Houston   data.houstontx.gov                — Accela portal, no public API (use CKAN for summaries)
+  # Fort Worth permits.partner.socrata.com/qy5k-jz7m — data only through 2015, stale
+  # DC        opendata.dc.gov                   — ArcGIS FeatureServer (see ckan_sources.yaml)
+  # Miami     opendata.miamidade.gov             — redirect, investigating
+  # Denver    data.denvergov.org                — redirect, investigating
+  # Portland  data.portlandoregon.gov            — DNS failure
