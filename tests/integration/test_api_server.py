@@ -99,10 +99,13 @@ class TestHealthEndpoint:
 @pytest.mark.integration
 class TestLeadsEndpoint:
     def test_list_leads_empty(self, api_client: TestClient):
-        """When no leads exist, the endpoint returns an empty list."""
+        """When no leads exist, the endpoint returns an empty result (array or envelope)."""
         response = api_client.get("/api/leads")
         assert response.status_code == 200
-        assert response.json() == []
+        body = response.json()
+        # API returns envelope {data, total, ...} or bare array
+        leads = body.get("data", body) if isinstance(body, dict) else body
+        assert leads == []
 
     def test_list_leads_with_data(self, api_client: TestClient, firestore_emulator):
         """Seed leads and verify they are returned."""
@@ -115,7 +118,8 @@ class TestLeadsEndpoint:
 
         response = api_client.get("/api/leads")
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        data = body.get("data", body) if isinstance(body, dict) else body
         assert len(data) == 2
 
     def test_list_leads_filter_by_trade(self, api_client: TestClient, firestore_emulator):
@@ -129,7 +133,8 @@ class TestLeadsEndpoint:
 
         response = api_client.get("/api/leads", params={"trade": "ELECTRICAL"})
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        data = body.get("data", body) if isinstance(body, dict) else body
         assert len(data) == 2
         assert all(d["trade"] == "ELECTRICAL" for d in data)
 
@@ -143,7 +148,8 @@ class TestLeadsEndpoint:
             firestore_emulator.leads().document(lead["id"]).set(lead)
 
         response = api_client.get("/api/leads", params={"sort_by": "score"})
-        data = response.json()
+        body = response.json()
+        data = body.get("data", body) if isinstance(body, dict) else body
         scores = [d["score"] for d in data]
         assert scores == sorted(scores, reverse=True)
 
